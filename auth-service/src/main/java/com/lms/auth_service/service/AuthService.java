@@ -1,4 +1,4 @@
-//Controller = “Door of your system”
+//Service = "Business logic of your system"
 
 package com.lms.auth_service.service;
 
