@@ -34,9 +34,15 @@ public class AuthService {
             throw new IllegalArgumentException("Email already exists");
         }
 
+        Set<String> allowedRoles = Set.of("STUDENT", "INSTRUCTOR", "ADMIN");
+
         String role = (req.getRole() == null || req.getRole().isBlank())
                 ? "STUDENT"
                 : req.getRole().trim().toUpperCase(Locale.ROOT);
+
+        if (!allowedRoles.contains(role)) {
+            throw new IllegalArgumentException("Invalid role: must be one of STUDENT, INSTRUCTOR, ADMIN");
+        }
 
         String hash = passwordEncoder.encode(req.getPassword());
         User user = new User(email, hash, Set.of(role));
