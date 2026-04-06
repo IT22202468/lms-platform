@@ -13,10 +13,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<?> handleSecurity(SecurityException ex) {
         String msg = ex.getMessage() == null ? "Forbidden" : ex.getMessage();
 
-        if (msg.toLowerCase().contains("missing x-user-id")) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", msg));
+        if (msg.toLowerCase().contains("missing")
+                || msg.toLowerCase().contains("gateway")) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("message", msg));
         }
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", msg));
+
+//        if (msg.toLowerCase().contains("missing x-user-id")) {
+//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", msg));
+//        }
+//        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", msg));
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("message", msg));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
