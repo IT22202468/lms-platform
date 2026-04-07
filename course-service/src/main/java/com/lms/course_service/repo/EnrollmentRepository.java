@@ -9,5 +9,7 @@ import java.util.Optional;
 public interface EnrollmentRepository extends MongoRepository<Enrollment, String> {
     Optional<Enrollment> findByCourseIdAndStudentId(String courseId, String studentId);
     List<Enrollment> findByStudentId(String studentId);
+    List<Enrollment> findByCourseId(String courseId);
+    void deleteByCourseId(String courseId);
     long countByCourseId(String courseId);
 }
