@@ -1,11 +1,11 @@
 package com.lms.course_service.service;
 
 import com.lms.course_service.dto.CreateCourseRequest;
+import com.lms.course_service.dto.UpdateCourseRequest;
 import com.lms.course_service.model.Course;
 import com.lms.course_service.model.Enrollment;
 import com.lms.course_service.repo.CourseRepository;
 import com.lms.course_service.repo.EnrollmentRepository;
-import org.springframework.security.config.ldap.LdapUserServiceBeanDefinitionParser;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -46,6 +46,54 @@ public class CourseService {
         course.setPublished(true);
         course.setUpdatedAt(Instant.now());
         return courseRepo.save(course);
+    }
+
+    public Course getCourseById(String userId, String courseId) {
+        Course course = courseRepo.findById(courseId)
+                .orElseThrow(() -> new IllegalArgumentException("Course not found"));
+
+        if (!course.isPublished() && !course.getInstructorId().equals(userId)) {
+            throw new SecurityException("Forbidden");
+        }
+
+        return course;
+    }
+
+    public Course updateCourse(String instructorId, String courseId, UpdateCourseRequest req) {
+        Course course = courseRepo.findById(courseId)
+                .orElseThrow(() -> new IllegalArgumentException("Course not found"));
+
+        if (!course.getInstructorId().equals(instructorId)) {
+            throw new SecurityException("Not your course");
+        }
+
+        course.setTitle(req.getTitle());
+        course.setDescription(req.getDescription());
+        course.setUpdatedAt(Instant.now());
+        return courseRepo.save(course);
+    }
+
+    public void deleteCourse(String instructorId, String courseId) {
+        Course course = courseRepo.findById(courseId)
+                .orElseThrow(() -> new IllegalArgumentException("Course not found"));
+
+        if (!course.getInstructorId().equals(instructorId)) {
+            throw new SecurityException("Not your course");
+        }
+
+        enrollmentRepo.deleteByCourseId(courseId);
+        courseRepo.delete(course);
+    }
+
+    public List<Enrollment> listCourseStudents(String instructorId, String courseId) {
+        Course course = courseRepo.findById(courseId)
+                .orElseThrow(() -> new IllegalArgumentException("Course not found"));
+
+        if (!course.getInstructorId().equals(instructorId)) {
+            throw new SecurityException("Not your course");
+        }
+
+        return enrollmentRepo.findByCourseId(courseId);
     }
 
     public void enroll(String studentId, String courseId) {
