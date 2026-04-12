@@ -1,11 +1,16 @@
 package com.lms.auth_service.config;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 @Component
 public class MongoDebugLogger implements CommandLineRunner {
+
+    private static final Logger log = LoggerFactory.getLogger(MongoDebugLogger.class);
+
     @Value("${spring.data.mongodb.uri:}")
     private String mongoUri;
 
@@ -14,8 +19,9 @@ public class MongoDebugLogger implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        System.out.println(">>> spring.data.mongodb.uri = " + mongoUri);
-        System.out.println(">>> spring.data.mongodb.database = " + databaseName);
-
+        log.atDebug()
+                .addKeyValue("event.action", "mongo_connect")
+                .addKeyValue("db.name", databaseName)
+                .log("MongoDB configuration loaded");
     }
 }
