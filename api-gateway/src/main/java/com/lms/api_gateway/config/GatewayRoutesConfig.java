@@ -3,6 +3,8 @@ package com.lms.api_gateway.config;
 import org.springframework.http.HttpHeaders;
 import com.lms.api_gateway.security.JwtService;
 import io.jsonwebtoken.Claims;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.function.HandlerFilterFunction;
@@ -16,6 +18,8 @@ import static org.springframework.cloud.gateway.server.mvc.handler.GatewayRouter
 
 @Configuration
 public class GatewayRoutesConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(GatewayRoutesConfig.class);
 
     private final JwtService jwtService;
 
@@ -81,6 +85,12 @@ public class GatewayRoutesConfig {
             String authHeader = request.headers().firstHeader(HttpHeaders.AUTHORIZATION);
 
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                log.atWarn()
+                        .addKeyValue("event.action", "gateway_jwt_rejected")
+                        .addKeyValue("error.category", "missing_bearer")
+                        .addKeyValue("http.response.status_code", 401)
+                        .addKeyValue("url.path", request.path())
+                        .log("Missing or invalid Authorization header");
                 return ServerResponse.status(401)
                         .body("{\"message\":\"Missing or invalid Authorization header\"}");
             }
@@ -110,6 +120,13 @@ public class GatewayRoutesConfig {
 
                 return next.handle(modified);
             } catch (Exception ex) {
+                log.atWarn()
+                        .addKeyValue("event.action", "gateway_jwt_rejected")
+                        .addKeyValue("error.category", "invalid_token")
+                        .addKeyValue("error.type", ex.getClass().getName())
+                        .addKeyValue("http.response.status_code", 401)
+                        .addKeyValue("url.path", request.path())
+                        .log("Invalid or expired token");
                 return ServerResponse.status(401)
                         .body("{\"message\":\"Invalid or expired token\"}");
             }

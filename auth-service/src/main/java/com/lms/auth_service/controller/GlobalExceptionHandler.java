@@ -1,8 +1,7 @@
-package com.lms.course_service.controller;
+package com.lms.auth_service.controller;
 
-import com.lms.course_service.exception.CourseNotFoundException;
-import com.lms.course_service.exception.UnauthorizedException;
-import com.lms.course_service.exception.ValidationException;
+import com.lms.auth_service.exception.UnauthorizedException;
+import com.lms.auth_service.exception.ValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -19,17 +18,10 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    @ExceptionHandler(CourseNotFoundException.class)
-    public ResponseEntity<?> handleCourseNotFound(CourseNotFoundException ex) {
-        logClientError(ex, HttpStatus.NOT_FOUND, "not_found", "failure");
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(Map.of("message", ex.getMessage()));
-    }
-
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<?> handleUnauthorized(UnauthorizedException ex) {
-        logClientError(ex, HttpStatus.FORBIDDEN, "authorization", "forbidden");
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+        logClientError(ex, HttpStatus.UNAUTHORIZED, "authentication", "unauthorized");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(Map.of("message", ex.getMessage()));
     }
 
@@ -54,16 +46,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<?> handleSecurity(SecurityException ex) {
         String msg = ex.getMessage() == null ? "Forbidden" : ex.getMessage();
 
-        if (msg.toLowerCase().contains("missing")
-                || msg.toLowerCase().contains("gateway")) {
+        if (msg.toLowerCase().contains("missing") || msg.toLowerCase().contains("gateway")) {
             logClientError(ex, HttpStatus.UNAUTHORIZED, "security", "unauthorized");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("message", msg));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", msg));
         }
 
         logClientError(ex, HttpStatus.FORBIDDEN, "security", "forbidden");
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(Map.of("message", msg));
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", msg));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -88,12 +77,7 @@ public class GlobalExceptionHandler {
                 .body(Map.of("message", "Internal server error"));
     }
 
-    private static void logClientError(
-            Exception ex,
-            HttpStatus status,
-            String errorCategory,
-            String outcome
-    ) {
+    private static void logClientError(Exception ex, HttpStatus status, String errorCategory, String outcome) {
         log.atWarn()
                 .addKeyValue("event.action", "http_error_response")
                 .addKeyValue("event.outcome", outcome)

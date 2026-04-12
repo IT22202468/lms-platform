@@ -5,6 +5,7 @@ import com.lms.course_service.dto.CourseStudentResponse;
 import com.lms.course_service.dto.CreateCourseRequest;
 import com.lms.course_service.dto.PageResponse;
 import com.lms.course_service.dto.UpdateCourseRequest;
+import com.lms.course_service.exception.UnauthorizedException;
 import com.lms.course_service.model.Course;
 import com.lms.course_service.model.Enrollment;
 import com.lms.course_service.security.IdentityExtractor;
@@ -166,7 +167,7 @@ public class CourseController {
 
     private void requireRole(RequestIdentity id, String role) {
         if (!id.hasRole(role)) {
-            throw new SecurityException("Forbidden");
+            throw new UnauthorizedException("Forbidden: requires " + role + " role");
         }
     }
 
