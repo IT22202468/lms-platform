@@ -3,6 +3,7 @@ package com.lms.course_service.controller;
 import com.lms.course_service.dto.CourseResponse;
 import com.lms.course_service.dto.CourseStudentResponse;
 import com.lms.course_service.dto.CreateCourseRequest;
+import com.lms.course_service.dto.PageResponse;
 import com.lms.course_service.dto.UpdateCourseRequest;
 import com.lms.course_service.model.Course;
 import com.lms.course_service.model.Enrollment;
@@ -29,8 +30,18 @@ public class CourseController {
     }
 
     @GetMapping("/courses")
-    public List<CourseResponse> listCourses() {
-        return courseService.listPublishedCourses().stream().map(this::toResponse).toList();
+    public PageResponse<CourseResponse> listCourses(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size
+    ) {
+        var result = courseService.listPublishedCourses(page, size).map(this::toResponse);
+        return new PageResponse<>(
+                result.getContent(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages()
+        );
     }
 
     @GetMapping("/courses/{courseId}")
@@ -74,11 +85,22 @@ public class CourseController {
 
     // Instructor: list my courses
     @GetMapping("/instructor/courses")
-    public List<CourseResponse> myCourses(HttpServletRequest request) {
+    public PageResponse<CourseResponse> myCourses(
+            HttpServletRequest request,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size
+    ) {
         RequestIdentity id = identityExtractor.extract(request);
         requireRole(id, "INSTRUCTOR");
 
-        return courseService.listInstructorCourses(id.getUserId()).stream().map(this::toResponse).toList();
+        var result = courseService.listInstructorCourses(id.getUserId(), page, size).map(this::toResponse);
+        return new PageResponse<>(
+                result.getContent(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages()
+        );
     }
 
     // Instructor: publish course
@@ -102,21 +124,44 @@ public class CourseController {
 
     // Student: my enrollments
     @GetMapping("/student/enrollments")
-    public List<Enrollment> myEnrollments(HttpServletRequest request) {
+    public PageResponse<Enrollment> myEnrollments(
+            HttpServletRequest request,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size
+    ) {
         RequestIdentity id = identityExtractor.extract(request);
         requireRole(id, "STUDENT");
 
-        return courseService.listStudentEnrollments(id.getUserId());
+        var result = courseService.listStudentEnrollments(id.getUserId(), page, size);
+        return new PageResponse<>(
+                result.getContent(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages()
+        );
     }
 
     @GetMapping("/courses/{courseId}/students")
-    public List<CourseStudentResponse> listCourseStudents(HttpServletRequest request, @PathVariable String courseId) {
+    public PageResponse<CourseStudentResponse> listCourseStudents(
+            HttpServletRequest request,
+            @PathVariable String courseId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size
+    ) {
         RequestIdentity id = identityExtractor.extract(request);
         requireRole(id, "INSTRUCTOR");
 
-        return courseService.listCourseStudents(id.getUserId(), courseId).stream()
-                .map(enrollment -> new CourseStudentResponse(enrollment.getStudentId(), enrollment.getEnrolledAt()))
-                .toList();
+        var result = courseService.listCourseStudents(id.getUserId(), courseId, page, size)
+                .map(enrollment -> new CourseStudentResponse(enrollment.getStudentId(), enrollment.getEnrolledAt()));
+
+        return new PageResponse<>(
+                result.getContent(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages()
+        );
     }
 
     private void requireRole(RequestIdentity id, String role) {
