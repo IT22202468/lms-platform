@@ -6,10 +6,11 @@ import com.lms.course_service.model.Course;
 import com.lms.course_service.model.Enrollment;
 import com.lms.course_service.repo.CourseRepository;
 import com.lms.course_service.repo.EnrollmentRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.List;
 
 @Service
 public class CourseService {
@@ -27,12 +28,12 @@ public class CourseService {
         return courseRepo.save(course);
     }
 
-    public List<Course> listPublishedCourses() {
-        return courseRepo.findByPublishedTrue();
+    public Page<Course> listPublishedCourses(int page, int size) {
+        return courseRepo.findByPublishedTrue(PageRequest.of(page, size));
     }
 
-    public List<Course> listInstructorCourses(String instructorId) {
-        return courseRepo.findByInstructorId(instructorId);
+    public Page<Course> listInstructorCourses(String instructorId, int page, int size) {
+        return courseRepo.findByInstructorId(instructorId, PageRequest.of(page, size));
     }
 
     public Course publishCourse(String instructorId, String courseId) {
@@ -85,7 +86,7 @@ public class CourseService {
         courseRepo.delete(course);
     }
 
-    public List<Enrollment> listCourseStudents(String instructorId, String courseId) {
+    public Page<Enrollment> listCourseStudents(String instructorId, String courseId, int page, int size) {
         Course course = courseRepo.findById(courseId)
                 .orElseThrow(() -> new IllegalArgumentException("Course not found"));
 
@@ -93,7 +94,7 @@ public class CourseService {
             throw new SecurityException("Not your course");
         }
 
-        return enrollmentRepo.findByCourseId(courseId);
+        return enrollmentRepo.findByCourseId(courseId, PageRequest.of(page, size));
     }
 
     public void enroll(String studentId, String courseId) {
@@ -111,7 +112,7 @@ public class CourseService {
         enrollmentRepo.save(new Enrollment(courseId, studentId));
     }
 
-    public List<Enrollment> listStudentEnrollments(String studentId) {
-        return enrollmentRepo.findByStudentId(studentId);
+    public Page<Enrollment> listStudentEnrollments(String studentId, int page, int size) {
+        return enrollmentRepo.findByStudentId(studentId, PageRequest.of(page, size));
     }
 }
