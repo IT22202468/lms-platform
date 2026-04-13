@@ -1,7 +1,11 @@
 package com.lms.course_service.controller;
 
 import com.lms.course_service.dto.CourseResponse;
+import com.lms.course_service.dto.CourseStudentResponse;
 import com.lms.course_service.dto.CreateCourseRequest;
+import com.lms.course_service.dto.PageResponse;
+import com.lms.course_service.dto.UpdateCourseRequest;
+import com.lms.course_service.exception.UnauthorizedException;
 import com.lms.course_service.model.Course;
 import com.lms.course_service.model.Enrollment;
 import com.lms.course_service.security.IdentityExtractor;
@@ -14,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 public class CourseController {
@@ -26,8 +31,24 @@ public class CourseController {
     }
 
     @GetMapping("/courses")
-    public List<CourseResponse> listCourses() {
-        return courseService.listPublishedCourses().stream().map(this::toResponse).toList();
+    public PageResponse<CourseResponse> listCourses(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size
+    ) {
+        var result = courseService.listPublishedCourses(page, size).map(this::toResponse);
+        return new PageResponse<>(
+                result.getContent(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages()
+        );
+    }
+
+    @GetMapping("/courses/{courseId}")
+    public CourseResponse getCourseById(HttpServletRequest request, @PathVariable String courseId) {
+        RequestIdentity id = identityExtractor.extract(request);
+        return toResponse(courseService.getCourseById(id.getUserId(), courseId));
     }
 
     @PostMapping("/courses")
@@ -42,13 +63,45 @@ public class CourseController {
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(course));
     }
 
-    // Instructor: list my courses
-    @GetMapping("/instructor/courses")
-    public List<CourseResponse> myCourses(HttpServletRequest request) {
+    @PutMapping("/courses/{courseId}")
+    public CourseResponse updateCourse(
+            HttpServletRequest request,
+            @PathVariable String courseId,
+            @Valid @RequestBody UpdateCourseRequest req
+    ) {
         RequestIdentity id = identityExtractor.extract(request);
         requireRole(id, "INSTRUCTOR");
 
-        return courseService.listInstructorCourses(id.getUserId()).stream().map(this::toResponse).toList();
+        return toResponse(courseService.updateCourse(id.getUserId(), courseId, req));
+    }
+
+    @DeleteMapping("/courses/{courseId}")
+    public ResponseEntity<Map<String, String>> deleteCourse(HttpServletRequest request, @PathVariable String courseId) {
+        RequestIdentity id = identityExtractor.extract(request);
+        requireRole(id, "INSTRUCTOR");
+
+        courseService.deleteCourse(id.getUserId(), courseId);
+        return ResponseEntity.ok(Map.of("message", "Course deleted"));
+    }
+
+    // Instructor: list my courses
+    @GetMapping("/instructor/courses")
+    public PageResponse<CourseResponse> myCourses(
+            HttpServletRequest request,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size
+    ) {
+        RequestIdentity id = identityExtractor.extract(request);
+        requireRole(id, "INSTRUCTOR");
+
+        var result = courseService.listInstructorCourses(id.getUserId(), page, size).map(this::toResponse);
+        return new PageResponse<>(
+                result.getContent(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages()
+        );
     }
 
     // Instructor: publish course
@@ -72,16 +125,49 @@ public class CourseController {
 
     // Student: my enrollments
     @GetMapping("/student/enrollments")
-    public List<Enrollment> myEnrollments(HttpServletRequest request) {
+    public PageResponse<Enrollment> myEnrollments(
+            HttpServletRequest request,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size
+    ) {
         RequestIdentity id = identityExtractor.extract(request);
         requireRole(id, "STUDENT");
 
-        return courseService.listStudentEnrollments(id.getUserId());
+        var result = courseService.listStudentEnrollments(id.getUserId(), page, size);
+        return new PageResponse<>(
+                result.getContent(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages()
+        );
+    }
+
+    @GetMapping("/courses/{courseId}/students")
+    public PageResponse<CourseStudentResponse> listCourseStudents(
+            HttpServletRequest request,
+            @PathVariable String courseId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size
+    ) {
+        RequestIdentity id = identityExtractor.extract(request);
+        requireRole(id, "INSTRUCTOR");
+
+        var result = courseService.listCourseStudents(id.getUserId(), courseId, page, size)
+                .map(enrollment -> new CourseStudentResponse(enrollment.getStudentId(), enrollment.getEnrolledAt()));
+
+        return new PageResponse<>(
+                result.getContent(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages()
+        );
     }
 
     private void requireRole(RequestIdentity id, String role) {
         if (!id.hasRole(role)) {
-            throw new SecurityException("Forbidden");
+            throw new UnauthorizedException("Forbidden: requires " + role + " role");
         }
     }
 

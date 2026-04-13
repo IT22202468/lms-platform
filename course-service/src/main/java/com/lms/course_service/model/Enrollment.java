@@ -1,12 +1,14 @@
 package com.lms.course_service.model;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
 
 @Document("enrollments")
+@CompoundIndex(name = "course_student_unique", def = "{'courseId': 1, 'studentId': 1}", unique = true)
 public class Enrollment {
 
     @Id

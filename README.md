@@ -1,127 +1,68 @@
-# LMS Microservices Project — Comprehensive Technical Report
+# LMS Microservices Platform
 
-# 1. Project Overview
+Learning Management System built as Spring Boot microservices with JWT authentication, API Gateway routing, and trusted identity propagation.
 
-## Objective
+## Tech Stack
 
-Build a **Learning Management System (LMS)** using:
+- Java 21
+- Spring Boot 3.x
+- Spring Security
+- Spring Cloud Gateway Server MVC
+- MongoDB
+- Maven
 
-* Spring Boot Microservices
-* MongoDB
-* JWT Authentication
-* API Gateway
-* Service‑to‑Service Identity Propagation
+## Services
 
----
+### `auth-service` (port `8081`)
+- User registration and login
+- Password hashing
+- JWT generation
+- Current principal probe endpoint
 
-# 2. Current Architecture
+### `course-service` (port `8082`)
+- Course lifecycle management
+- Enrollment workflows
+- Instructor/student scoped APIs
+- Gateway-trusted identity extraction
 
-## Services Implemented
+### `api-gateway` (port `8085`)
+- Route requests to internal services
+- Validate JWT for protected routes
+- Inject identity headers for downstream services
 
-### 1. Auth Service
+## Architecture
 
-Handles:
-
-* User registration
-* User login
-* JWT generation
-* Password hashing
-
-### 2. Course Service
-
-Handles:
-
-* Course creation
-* Course publishing
-* Course enrollment
-* Instructor course listing
-* Student enrollment listing
-
-### 3. API Gateway
-
-Handles:
-
-* Routing requests
-* JWT validation
-* Identity propagation
-* Service boundary enforcement
-
----
-
-# 3. System Architecture
-
-```
+```text
 Client
   |
   v
-API Gateway (JWT Validation + Routing)
-  |                     |
-  v                     v
-Auth Service        Course Service
-  |                     |
-  v                     v
-MongoDB              MongoDB
+API Gateway (JWT validation + identity header injection)
+  |                                |
+  v                                v
+Auth Service                    Course Service
+  |                                |
+  v                                v
+MongoDB                          MongoDB
 ```
 
----
+## Identity Propagation Contract
 
-# 4. Auth Service Implementation
+Headers injected by gateway on protected routes:
+- `X-User-Id`
+- `X-User-Email`
+- `X-User-Roles`
+- `X-Gateway-Auth: true`
 
-## Package Structure
+`course-service` enforces gateway-only access using `IdentityExtractor`.
 
-```
-auth-service
- ├── config
- ├── controller
- ├── dto
- ├── model
- ├── repo
- ├── security
- └── service
-```
+## API Endpoints
 
----
+### Auth APIs
 
-## Implemented Components
+#### `POST /auth/register`
+Registers a user and returns JWT.
 
-### application.properties
-
-Configured:
-
-* Service name
-* Server port (8081)
-* MongoDB connection
-* JWT secret
-* Actuator endpoints
-
----
-
-### User Model
-
-Fields:
-
-* id
-* email
-* passwordHash
-* roles
-* createdAt
-
----
-
-### UserRepository
-
-Functions:
-
-* findByEmail()
-* existsByEmail()
-* save()
-
----
-
-### DTOs
-
-#### RegisterRequest
-
+Request:
 ```json
 {
   "email": "user@example.com",
@@ -130,8 +71,21 @@ Functions:
 }
 ```
 
-#### LoginRequest
+Success: `201 Created`
+```json
+{
+  "token": "<jwt>"
+}
+```
 
+Errors:
+- `400 Bad Request` validation error
+- `409 Conflict` duplicate email
+
+#### `POST /auth/login`
+Authenticates user and returns JWT.
+
+Request:
 ```json
 {
   "email": "user@example.com",
@@ -139,423 +93,178 @@ Functions:
 }
 ```
 
-#### AuthResponse
-
+Success: `200 OK`
 ```json
 {
-  "token": "jwt-token"
+  "token": "<jwt>"
 }
 ```
 
----
+Errors:
+- `401 Unauthorized` invalid credentials
 
-### JwtService
+#### `GET /auth/me`
+Returns current authenticated principal.
 
-Responsibilities:
-
-* Generate JWT
-* Parse JWT
-* Validate JWT
-
-Token contains:
-
-* subject → userId
-* email
-* roles
-
----
-
-### AuthService
-
-#### Register Flow
-
-1. Normalize email
-2. Check duplicate email
-3. Hash password
-4. Save user
-5. Generate JWT
-
-#### Login Flow
-
-1. Find user by email
-2. Validate password
-3. Generate JWT
-
----
-
-### AuthController
-
-Endpoints:
-
-```
-POST /auth/register
-POST /auth/login
+Success: `200 OK`
+```json
+{
+  "name": "user-id-or-email"
+}
 ```
 
----
+Errors:
+- `401 Unauthorized`
 
-### SecurityConfig
+### Course APIs (protected via gateway)
 
-Configured:
+#### `GET /courses`
+List all published courses.
 
-* Stateless sessions
-* Password encoder
-* CSRF disabled
+Success: `200 OK` (`CourseResponse[]`)
 
----
+#### `GET /courses/{courseId}`
+Get course by id.
 
-### GlobalExceptionHandler
+Visibility rules:
+- Published course: visible to any authenticated user
+- Unpublished course: visible only to owning instructor
 
-Handles:
+Success: `200 OK` (`CourseResponse`)
 
-* Duplicate email
-* Invalid login
-* Validation errors
+Errors:
+- `400 Bad Request` course not found
+- `403 Forbidden` unpublished course not owned by requester
 
----
+#### `POST /courses`
+Create a course (instructor only).
 
-# 5. Course Service Implementation
-
-## Package Structure
-
-```
-course-service
- ├── controller
- ├── dto
- ├── model
- ├── repo
- ├── security
- └── service
+Request:
+```json
+{
+  "title": "Intro to Java",
+  "description": "Core Java fundamentals"
+}
 ```
 
----
+Success: `201 Created` (`CourseResponse`)
 
-## Models
+Errors:
+- `400 Bad Request` validation failure
+- `403 Forbidden` requester is not instructor
 
-### Course
+#### `PUT /courses/{courseId}`
+Update own course title/description (instructor + owner only).
 
-Fields:
-
-* id
-* title
-* description
-* instructorId
-* published
-* createdAt
-
----
-
-### Enrollment
-
-Fields:
-
-* id
-* courseId
-* studentId
-* enrolledAt
-
----
-
-## Repositories
-
-### CourseRepository
-
-Functions:
-
-* findPublished
-* findByInstructorId
-
-### EnrollmentRepository
-
-Functions:
-
-* existsByStudentAndCourse
-* findByStudentId
-
----
-
-# 6. Identity System
-
-Headers used:
-
-```
-X-User-Id
-X-User-Roles
-X-Gateway-Auth
+Request:
+```json
+{
+  "title": "Intro to Java (Updated)",
+  "description": "Updated description"
+}
 ```
 
----
+Success: `200 OK` (`CourseResponse`)
 
-## RequestIdentity
+Errors:
+- `400 Bad Request` course not found / validation failure
+- `403 Forbidden` not owner or not instructor
 
-Represents:
+#### `PUT /courses/{courseId}/publish`
+Publish own course (instructor + owner only).
 
-* userId
-* roles
+Success: `200 OK` (`CourseResponse`)
 
----
+Errors:
+- `400 Bad Request` course not found
+- `403 Forbidden` not owner or not instructor
 
-## IdentityExtractor
+#### `DELETE /courses/{courseId}`
+Delete own course (instructor + owner only).
 
-Responsibilities:
-
-* Extract headers
-* Validate gateway access
-* Build RequestIdentity
-
----
-
-# 7. Course Service Features
-
-## Create Course
-
-```
-POST /courses
+Success: `200 OK`
+```json
+{
+  "message": "Course deleted"
+}
 ```
 
-Instructor only
+Errors:
+- `400 Bad Request` course not found
+- `403 Forbidden` not owner or not instructor
 
----
-
-## Publish Course
-
-```
-PUT /courses/{id}/publish
-```
-
----
-
-## List Published Courses
-
-```
-GET /courses
-```
-
----
-
-## Enroll Student
-
-```
-POST /courses/{id}/enroll
-```
+#### `POST /courses/{courseId}/enroll`
+Enroll into published course (student only).
 
 Rules:
+- Must have `STUDENT` role
+- Course must be published
+- Cannot enroll twice
 
-* Must be student
-* Must be published
-* Cannot enroll twice
-
----
-
-## Instructor Courses
-
-```
-GET /instructor/courses
+Success: `201 Created`
+```json
+{
+  "message": "Enrolled"
+}
 ```
 
----
+Errors:
+- `400 Bad Request` course not found / not published / already enrolled
+- `403 Forbidden` requester is not student
 
-## Student Enrollments
+#### `GET /instructor/courses`
+List current instructor-owned courses.
 
-```
-GET /student/enrollments
-```
+Success: `200 OK` (`CourseResponse[]`)
 
----
+Errors:
+- `403 Forbidden` requester is not instructor
 
-# 8. API Gateway
+#### `GET /student/enrollments`
+List current student enrollments.
 
-Gateway Port:
+Success: `200 OK` (`Enrollment[]`)
 
-```
-8085
-```
+Errors:
+- `403 Forbidden` requester is not student
 
----
+#### `GET /courses/{courseId}/students`
+List students enrolled in a course (instructor + owner only).
 
-## Responsibilities
-
-* Route requests
-* Validate JWT
-* Inject identity headers
-* Protect services
-
----
-
-# 9. Gateway Flow
-
-```
-Client
-  ↓
-Gateway
-  ↓
-JWT Validation
-  ↓
-Header Injection
-  ↓
-Course Service
-  ↓
-Business Logic
+Success: `200 OK`
+```json
+[
+  {
+    "studentId": "abc123",
+    "enrolledAt": "2026-04-06T10:00:00Z"
+  }
+]
 ```
 
----
+Errors:
+- `400 Bad Request` course not found
+- `403 Forbidden` not owner or not instructor
 
-# 10. Completed Features
+## Current Implementation Status
 
-## Auth Service
+Implemented:
+- Auth service: register, login, me
+- Course service: list/create/get/update/publish/delete/enroll, instructor courses, student enrollments, course students list, enrollment unique compound index, pagination on list endpoints
+- Gateway: protected route JWT validation and identity header injection
 
-* Register
-* Login
-* JWT generation
+Remaining roadmap:
+- Dockerfiles and Docker Compose
+- Production architecture concerns (service discovery, load balancing, Kubernetes)
 
----
+## Local Run
 
-## Course Service
+From project root, run each service in separate terminals:
+- `cd auth-service && ./mvnw spring-boot:run`
+- `cd course-service && ./mvnw spring-boot:run`
+- `cd api-gateway && ./mvnw spring-boot:run`
 
-* Create course
-* Publish course
-* List courses
-* Enroll student
-* Instructor course list
-* Student enrollment list
+## Recommended Next Order
 
----
-
-## API Gateway
-
-* Routing
-* JWT validation
-* Header injection
-
----
-
-# 11. Known Limitations
-
-Missing features:
-
-* Update course
-* Delete course
-* Get course by ID
-* Pagination
-* Dockerization
-* Load balancing
-
----
-
-# 12. Development Roadmap
-
-## Phase 1 — Core Features
-
-### Update Course
-
-```
-PUT /courses/{id}
-```
-
----
-
-### Get Course By ID
-
-```
-GET /courses/{id}
-```
-
----
-
-### Delete Course
-
-```
-DELETE /courses/{id}
-```
-
----
-
-# Phase 2 — Enrollment Improvements
-
-Add unique index:
-
-```
-courseId + studentId
-```
-
----
-
-# Phase 3 — Instructor Tools
-
-```
-GET /courses/{id}/students
-```
-
----
-
-# Phase 4 — Pagination
-
-Add pagination to:
-
-* courses
-* enrollments
-* instructor courses
-
----
-
-# Phase 5 — Dockerization
-
-Create:
-
-* Dockerfile auth-service
-* Dockerfile course-service
-* Dockerfile gateway
-
----
-
-# Phase 6 — Docker Compose
-
-Run:
-
-* auth-service
-* course-service
-* gateway
-* mongodb
-
----
-
-# Phase 7 — Production Architecture
-
-Add:
-
-* Load balancing
-* Kubernetes
-* Service discovery
-
----
-
-# 13. Current Project Status
-
-Maturity Level:
-
-Intermediate Microservices Architecture
-
----
-
-# 14. Recommended Next Order
-
-1. Update course
-2. Get course by id
-3. Delete course
-4. Instructor students list
-5. Pagination
-6. Dockerization
-7. Load balancing
-
----
-
-# 15. AI Agent Instructions
-
-AI agent should:
-
-1. Continue development from course-service
-2. Add update course endpoint
-3. Maintain architecture pattern
-4. Use identity extraction system
-5. Add validation rules
-
+1. Add Dockerfiles + Docker Compose
+2. Add production orchestration capabilities (Service Discovery, Load Balancing)
+3. Implement Kubernetes manifests
