@@ -1,18 +1,26 @@
 package com.lms.course_service.service;
 
 import com.lms.course_service.dto.CreateCourseRequest;
+import com.lms.course_service.dto.UpdateCourseRequest;
+import com.lms.course_service.exception.CourseNotFoundException;
+import com.lms.course_service.exception.UnauthorizedException;
+import com.lms.course_service.exception.ValidationException;
 import com.lms.course_service.model.Course;
 import com.lms.course_service.model.Enrollment;
 import com.lms.course_service.repo.CourseRepository;
 import com.lms.course_service.repo.EnrollmentRepository;
-import org.springframework.security.config.ldap.LdapUserServiceBeanDefinitionParser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.List;
 
 @Service
 public class CourseService {
+
+    private static final Logger log = LoggerFactory.getLogger(CourseService.class);
 
     private final CourseRepository courseRepo;
     private final EnrollmentRepository enrollmentRepo;
@@ -24,46 +32,120 @@ public class CourseService {
 
     public Course createCourse(String instructorId, CreateCourseRequest req){
         Course course = new Course(req.getTitle(), req.getDescription(), instructorId);
-        return courseRepo.save(course);
+        Course saved = courseRepo.save(course);
+        log.atInfo()
+                .addKeyValue("event.action", "course_created")
+                .addKeyValue("event.outcome", "success")
+                .addKeyValue("course.id", saved.getId())
+                .addKeyValue("user.id", instructorId)
+                .log("Course created");
+        return saved;
     }
 
-    public List<Course> listPublishedCourses() {
-        return courseRepo.findByPublishedTrue();
+    public Page<Course> listPublishedCourses(int page, int size) {
+        return courseRepo.findByPublishedTrue(PageRequest.of(page, size));
     }
 
-    public List<Course> listInstructorCourses(String instructorId) {
-        return courseRepo.findByInstructorId(instructorId);
+    public Page<Course> listInstructorCourses(String instructorId, int page, int size) {
+        return courseRepo.findByInstructorId(instructorId, PageRequest.of(page, size));
     }
 
     public Course publishCourse(String instructorId, String courseId) {
         Course course = courseRepo.findById(courseId)
-                .orElseThrow(() -> new IllegalArgumentException("Course not found"));
+                .orElseThrow(() -> new CourseNotFoundException(courseId));
 
         if (!course.getInstructorId().equals(instructorId)) {
-            throw new SecurityException("Not your course");
+            throw new UnauthorizedException("Not your course");
         }
 
         course.setPublished(true);
         course.setUpdatedAt(Instant.now());
+        Course saved = courseRepo.save(course);
+        log.atInfo()
+                .addKeyValue("event.action", "course_published")
+                .addKeyValue("event.outcome", "success")
+                .addKeyValue("course.id", courseId)
+                .addKeyValue("user.id", instructorId)
+                .log("Course published");
+        return saved;
+    }
+
+    public Course getCourseById(String userId, String courseId) {
+        Course course = courseRepo.findById(courseId)
+                .orElseThrow(() -> new CourseNotFoundException(courseId));
+
+        if (!course.isPublished() && !course.getInstructorId().equals(userId)) {
+            throw new UnauthorizedException("Forbidden");
+        }
+
+        return course;
+    }
+
+    public Course updateCourse(String instructorId, String courseId, UpdateCourseRequest req) {
+        Course course = courseRepo.findById(courseId)
+                .orElseThrow(() -> new CourseNotFoundException(courseId));
+
+        if (!course.getInstructorId().equals(instructorId)) {
+            throw new UnauthorizedException("Not your course");
+        }
+
+        course.setTitle(req.getTitle());
+        course.setDescription(req.getDescription());
+        course.setUpdatedAt(Instant.now());
         return courseRepo.save(course);
+    }
+
+    public void deleteCourse(String instructorId, String courseId) {
+        Course course = courseRepo.findById(courseId)
+                .orElseThrow(() -> new CourseNotFoundException(courseId));
+
+        if (!course.getInstructorId().equals(instructorId)) {
+            throw new UnauthorizedException("Not your course");
+        }
+
+        enrollmentRepo.deleteByCourseId(courseId);
+        courseRepo.delete(course);
+        log.atInfo()
+                .addKeyValue("event.action", "course_deleted")
+                .addKeyValue("event.outcome", "success")
+                .addKeyValue("course.id", courseId)
+                .addKeyValue("user.id", instructorId)
+                .log("Course deleted");
+    }
+
+    public Page<Enrollment> listCourseStudents(String instructorId, String courseId, int page, int size) {
+        Course course = courseRepo.findById(courseId)
+                .orElseThrow(() -> new CourseNotFoundException(courseId));
+
+        if (!course.getInstructorId().equals(instructorId)) {
+            throw new UnauthorizedException("Not your course");
+        }
+
+        return enrollmentRepo.findByCourseId(courseId, PageRequest.of(page, size));
     }
 
     public void enroll(String studentId, String courseId) {
         Course course = courseRepo.findById(courseId)
-                .orElseThrow(() -> new IllegalArgumentException("Course not found"));
+                .orElseThrow(() -> new CourseNotFoundException(courseId));
 
         if (!course.isPublished()) {
-            throw new IllegalArgumentException("Course not published");
+            throw new ValidationException("Course not published");
         }
 
         if (enrollmentRepo.findByCourseIdAndStudentId(courseId, studentId).isPresent()) {
-            throw new IllegalArgumentException("Already enrolled");
+            throw new ValidationException("Already enrolled");
         }
 
         enrollmentRepo.save(new Enrollment(courseId, studentId));
+        log.atInfo()
+                .addKeyValue("event.action", "student_enrolled")
+                .addKeyValue("event.outcome", "success")
+                .addKeyValue("course.id", courseId)
+                .addKeyValue("user.id", studentId)
+                .log("Student enrolled in course");
     }
 
-    public List<Enrollment> listStudentEnrollments(String studentId) {
-        return enrollmentRepo.findByStudentId(studentId);
+    public Page<Enrollment> listStudentEnrollments(String studentId, int page, int size) {
+        return enrollmentRepo.findByStudentId(studentId, PageRequest.of(page, size));
     }
 }
