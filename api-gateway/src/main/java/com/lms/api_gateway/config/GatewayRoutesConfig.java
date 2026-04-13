@@ -5,6 +5,7 @@ import com.lms.api_gateway.security.JwtService;
 import io.jsonwebtoken.Claims;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.function.HandlerFilterFunction;
@@ -22,6 +23,12 @@ public class GatewayRoutesConfig {
     private static final Logger log = LoggerFactory.getLogger(GatewayRoutesConfig.class);
 
     private final JwtService jwtService;
+
+    @Value("${gateway.auth-service.url}")
+    private String authServiceUrl;
+
+    @Value("${gateway.course-service.url}")
+    private String courseServiceUrl;
 
     public GatewayRoutesConfig(JwtService jwtService) {
         this.jwtService = jwtService;
@@ -63,7 +70,7 @@ public class GatewayRoutesConfig {
         RouterFunction<ServerResponse> authRoutes =
                 (RouterFunction<ServerResponse>) route()
                         .route(req -> req.path().startsWith("/auth/"), http())
-                        .before(uri("http://localhost:8081"))
+                        .before(uri(authServiceUrl))
                         .build();
 
         RouterFunction<ServerResponse> protectedRoutes =
@@ -74,7 +81,7 @@ public class GatewayRoutesConfig {
                                                 || req.path().startsWith("/student"),
                                 http())
                         .filter(jwtHeaderForwardingFilter())
-                        .before(uri("http://localhost:8082"))
+                        .before(uri(courseServiceUrl))
                         .build();
 
         return (RouterFunction<ServerResponse>) authRoutes.andOther(protectedRoutes);
