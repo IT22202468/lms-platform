@@ -58,7 +58,52 @@ jobs:
           retention-days: 7
 
   # ─────────────────────────────────────────────
-  # Job 2 — Build & Push to ghcr.io (push only)
+  # Job 2 — SonarQube Analysis (push only)
+  # ─────────────────────────────────────────────
+  sonar:
+    name: Sonar · ${{ matrix.service }}
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [auth-service, course-service, api-gateway]
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval \"db.adminCommand('ping')\""
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build, test and analyze with SonarQube
+        working-directory: ${{ matrix.service }}
+        run: ./mvnw verify sonar:sonar -B
+        env:
+          SPRING_DATA_MONGODB_URI: mongodb://localhost:27017/testdb
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+  # ─────────────────────────────────────────────
+  # Job 3 — Build & Push to ghcr.io (push only)
   # ─────────────────────────────────────────────
   build-push:
     name: Build & Push · ${{ matrix.service }}
@@ -94,7 +139,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.service }}:latest
 
   # ─────────────────────────────────────────────
-  # Job 3 — Deploy to Kubernetes (main only)
+  # Job 4 — Deploy to Kubernetes (main only)
   # ─────────────────────────────────────────────
   deploy:
     name: Deploy to Kubernetes
