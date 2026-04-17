@@ -10,7 +10,7 @@ services:
       retries: 5
 
   auth-service:
-    image: ghcr.io/IT22202468/auth-service:latest
+    image: ghcr.io/it22202468/auth-service:latest
     ports:
       - "8081:8081"
     environment:
@@ -21,7 +21,7 @@ services:
         condition: service_healthy
 
   course-service:
-    image: ghcr.io/IT22202468/course-service:latest
+    image: ghcr.io/it22202468/course-service:latest
     ports:
       - "8082:8082"
     environment:
@@ -32,7 +32,7 @@ services:
         condition: service_healthy
 
   api-gateway:
-    image: ghcr.io/IT22202468/api-gateway:latest
+    image: ghcr.io/it22202468/api-gateway:latest
     ports:
       - "8085:8085"
     environment:
