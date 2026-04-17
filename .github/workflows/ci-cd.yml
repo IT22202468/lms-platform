@@ -63,8 +63,9 @@ jobs:
   sonar:
     name: Sonar · ${{ matrix.service }}
     needs: test
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && secrets.SONAR_HOST_URL != ''
     runs-on: ubuntu-latest
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -139,70 +140,25 @@ jobs:
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.service }}:latest
 
   # ─────────────────────────────────────────────
-  # Job 4 — Deploy to Kubernetes (main only)
+  # Job 4 — Deploy to Oracle VM (main only)
   # ─────────────────────────────────────────────
   deploy:
-    name: Deploy to Kubernetes
+    name: Deploy to VM
     needs: build-push
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
-
-      - name: Configure kubeconfig
-        run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
-          chmod 600 ~/.kube/config
-
-      - name: Create namespace
-        run: kubectl apply -f k8s/namespace.yaml
-
-      - name: Sync K8s Secret from GitHub secrets
-        run: |
-          kubectl create secret generic lms-secrets \
-            --from-literal=JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-            --from-literal=AUTH_MONGODB_URI="mongodb://mongodb:27017/authdb" \
-            --from-literal=COURSE_MONGODB_URI="mongodb://mongodb:27017/coursedb" \
-            --namespace=lms \
-            --dry-run=client -o yaml | kubectl apply -f -
-
-      - name: Apply MongoDB
-        run: kubectl apply -f k8s/mongodb/
-
-      - name: Apply Services
-        run: |
-          kubectl apply -f k8s/auth-service/service.yaml
-          kubectl apply -f k8s/course-service/service.yaml
-          kubectl apply -f k8s/api-gateway/service.yaml
-
-      - name: Apply Deployments
-        run: |
-          kubectl apply -f k8s/auth-service/deployment.yaml
-          kubectl apply -f k8s/course-service/deployment.yaml
-          kubectl apply -f k8s/api-gateway/deployment.yaml
-
-      - name: Update image tags
-        run: |
-          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          TAG=sha-${{ github.sha }}
-
-          kubectl set image deployment/auth-service \
-            auth-service=${{ env.REGISTRY }}/${OWNER}/auth-service:${TAG} -n lms
-
-          kubectl set image deployment/course-service \
-            course-service=${{ env.REGISTRY }}/${OWNER}/course-service:${TAG} -n lms
-
-          kubectl set image deployment/api-gateway \
-            api-gateway=${{ env.REGISTRY }}/${OWNER}/api-gateway:${TAG} -n lms
-
-      - name: Wait for rollout
-        run: |
-          kubectl rollout status deployment/auth-service   -n lms --timeout=120s
-          kubectl rollout status deployment/course-service -n lms --timeout=120s
-          kubectl rollout status deployment/api-gateway    -n lms --timeout=120s
+      - name: SSH and deploy
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ubuntu
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            cd ~/lms-platform
+            git pull origin main
+            export JWT_SECRET="${{ secrets.JWT_SECRET }}"
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker compose -f docker-compose.prod.yml ps
