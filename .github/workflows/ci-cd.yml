@@ -63,7 +63,8 @@ jobs:
   sonar:
     name: Sonar · ${{ matrix.service }}
     needs: test
-    if: github.event_name == 'push' && secrets.SONAR_HOST_URL != ''
+    if: github.event_name == 'push'
+    # if: github.event_name == 'push' && secrets.SONAR_HOST_URL != ''
     runs-on: ubuntu-latest
     continue-on-error: true
     strategy:
