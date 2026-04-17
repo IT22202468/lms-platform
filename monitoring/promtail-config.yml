@@ -1,0 +1,37 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # Use the docker-compose service name as the 'service' label
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: service
+      # Use the container name (strip leading slash)
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container
+      # Only keep containers from this compose project
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        regex: 'lms-platform'
+        action: keep
+
+    pipeline_stages:
+      # Services log in ECS JSON — parse it to pull out useful labels
+      - json:
+          expressions:
+            log_level: 'log.level'
+            service_name: 'service.name'
+      - labels:
+          log_level:
+          service_name:

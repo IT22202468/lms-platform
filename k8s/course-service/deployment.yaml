@@ -16,7 +16,7 @@ spec:
       containers:
         - name: course-service
           image: lms/course-service:latest
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8082
           env:

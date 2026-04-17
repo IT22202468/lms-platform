@@ -10,36 +10,33 @@ services:
       retries: 5
 
   auth-service:
-    build: ./auth-service
-    image: lms/auth-service:latest
+    image: ghcr.io/IT22202468/auth-service:latest
     ports:
       - "8081:8081"
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/authdb
-      JWT_SECRET: ${JWT_SECRET:-Z7L+U7qZ7hem3u9IsLs+fpb0uiO4viiFY5P7cXiIXLk=}
+      JWT_SECRET: ${JWT_SECRET}
     depends_on:
       mongodb:
         condition: service_healthy
 
   course-service:
-    build: ./course-service
-    image: lms/course-service:latest
+    image: ghcr.io/IT22202468/course-service:latest
     ports:
       - "8082:8082"
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/coursedb
-      JWT_SECRET: ${JWT_SECRET:-Z7L+U7qZ7hem3u9IsLs+fpb0uiO4viiFY5P7cXiIXLk=}
+      JWT_SECRET: ${JWT_SECRET}
     depends_on:
       mongodb:
         condition: service_healthy
 
   api-gateway:
-    build: ./api-gateway
-    image: lms/api-gateway:latest
+    image: ghcr.io/IT22202468/api-gateway:latest
     ports:
       - "8085:8085"
     environment:
-      JWT_SECRET: ${JWT_SECRET:-Z7L+U7qZ7hem3u9IsLs+fpb0uiO4viiFY5P7cXiIXLk=}
+      JWT_SECRET: ${JWT_SECRET}
       AUTH_SERVICE_URL: http://auth-service:8081
       COURSE_SERVICE_URL: http://course-service:8082
     depends_on:
@@ -56,10 +53,6 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
-    depends_on:
-      - auth-service
-      - course-service
-      - api-gateway
 
   loki:
     image: grafana/loki:latest
@@ -122,10 +115,6 @@ services:
     depends_on:
       sonarqube-db:
         condition: service_healthy
-    ulimits:
-      nofile:
-        soft: 65536
-        hard: 65536
 
 volumes:
   mongo-data:

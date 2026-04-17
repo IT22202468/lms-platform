@@ -16,7 +16,7 @@ spec:
       containers:
         - name: api-gateway
           image: lms/api-gateway:latest
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8085
           env:
