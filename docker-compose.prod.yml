@@ -21,7 +21,7 @@ services:
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/authdb
       JWT_SECRET: ${JWT_SECRET}
-      JAVA_OPTS: "-Xms64m -Xmx192m"
+      JDK_JAVA_OPTIONS: "-Xms64m -Xmx192m"
     depends_on:
       mongodb:
         condition: service_healthy
@@ -37,7 +37,7 @@ services:
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/coursedb
       JWT_SECRET: ${JWT_SECRET}
-      JAVA_OPTS: "-Xms64m -Xmx192m"
+      JDK_JAVA_OPTIONS: "-Xms64m -Xmx192m"
     depends_on:
       mongodb:
         condition: service_healthy
@@ -54,7 +54,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       AUTH_SERVICE_URL: http://auth-service:8081
       COURSE_SERVICE_URL: http://course-service:8082
-      JAVA_OPTS: "-Xms64m -Xmx192m"
+      JDK_JAVA_OPTIONS: "-Xms64m -Xmx192m"
     depends_on:
       - auth-service
       - course-service
