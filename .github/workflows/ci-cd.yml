@@ -96,13 +96,13 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Build, test and analyze with SonarQube
+      - name: Build, test and analyze with SonarCloud
         working-directory: ${{ matrix.service }}
         run: ./mvnw verify sonar:sonar -B
         env:
           SPRING_DATA_MONGODB_URI: mongodb://localhost:27017/testdb
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_HOST_URL: https://sonarcloud.io
 
   # ─────────────────────────────────────────────
   # Job 3 — Build & Push to ghcr.io (push only)

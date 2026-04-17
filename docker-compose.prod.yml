@@ -9,6 +9,10 @@ services:
       timeout: 15s
       retries: 15
       start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   auth-service:
     image: ghcr.io/it22202468/auth-service:latest
@@ -17,9 +21,14 @@ services:
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/authdb
       JWT_SECRET: ${JWT_SECRET}
+      JAVA_OPTS: "-Xms64m -Xmx192m"
     depends_on:
       mongodb:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   course-service:
     image: ghcr.io/it22202468/course-service:latest
@@ -28,9 +37,14 @@ services:
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/coursedb
       JWT_SECRET: ${JWT_SECRET}
+      JAVA_OPTS: "-Xms64m -Xmx192m"
     depends_on:
       mongodb:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   api-gateway:
     image: ghcr.io/it22202468/api-gateway:latest
@@ -40,90 +54,14 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       AUTH_SERVICE_URL: http://auth-service:8081
       COURSE_SERVICE_URL: http://course-service:8082
+      JAVA_OPTS: "-Xms64m -Xmx192m"
     depends_on:
       - auth-service
       - course-service
-
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus-data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-
-  loki:
-    image: grafana/loki:latest
-    ports:
-      - "3100:3100"
-    volumes:
-      - ./monitoring/loki-config.yml:/etc/loki/config.yml
-      - loki-data:/loki
-    command: -config.file=/etc/loki/config.yml
-
-  promtail:
-    image: grafana/promtail:latest
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./monitoring/promtail-config.yml:/etc/promtail/config.yml
-    command: -config.file=/etc/promtail/config.yml
-    depends_on:
-      - loki
-
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
-    environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
-    depends_on:
-      - prometheus
-      - loki
-
-  sonarqube-db:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_USER: sonar
-      POSTGRES_PASSWORD: sonar
-      POSTGRES_DB: sonarqube
-    volumes:
-      - sonarqube-db-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sonar"]
-      interval: 10s
-      timeout: 10s
-      retries: 10
-      start_period: 40s
-
-  sonarqube:
-    image: sonarqube:community
-    ports:
-      - "9000:9000"
-    environment:
-      SONAR_JDBC_URL: jdbc:postgresql://sonarqube-db:5432/sonarqube
-      SONAR_JDBC_USERNAME: sonar
-      SONAR_JDBC_PASSWORD: sonar
-    volumes:
-      - sonarqube-data:/opt/sonarqube/data
-      - sonarqube-extensions:/opt/sonarqube/extensions
-      - sonarqube-logs:/opt/sonarqube/logs
-    depends_on:
-      sonarqube-db:
-        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
 volumes:
   mongo-data:
-  prometheus-data:
-  grafana-data:
-  loki-data:
-  sonarqube-db-data:
-  sonarqube-data:
-  sonarqube-extensions:
-  sonarqube-logs:
