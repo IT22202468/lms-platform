@@ -10,8 +10,7 @@ services:
       retries: 5
 
   auth-service:
-    build: ./auth-service
-    image: lms/auth-service:latest
+    image: ghcr.io/it22202468/auth-service:latest
     ports:
       - "8081:8081"
     environment:
@@ -22,8 +21,7 @@ services:
         condition: service_healthy
 
   course-service:
-    build: ./course-service
-    image: lms/course-service:latest
+    image: ghcr.io/it22202468/course-service:latest
     ports:
       - "8082:8082"
     environment:
@@ -34,8 +32,7 @@ services:
         condition: service_healthy
 
   api-gateway:
-    build: ./api-gateway
-    image: lms/api-gateway:latest
+    image: ghcr.io/it22202468/api-gateway:latest
     ports:
       - "8085:8085"
     environment:
@@ -46,93 +43,5 @@ services:
       - auth-service
       - course-service
 
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus-data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-    depends_on:
-      - auth-service
-      - course-service
-      - api-gateway
-
-  loki:
-    image: grafana/loki:latest
-    ports:
-      - "3100:3100"
-    volumes:
-      - ./monitoring/loki-config.yml:/etc/loki/config.yml
-      - loki-data:/loki
-    command: -config.file=/etc/loki/config.yml
-
-  promtail:
-    image: grafana/promtail:latest
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./monitoring/promtail-config.yml:/etc/promtail/config.yml
-    command: -config.file=/etc/promtail/config.yml
-    depends_on:
-      - loki
-
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
-    environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
-    depends_on:
-      - prometheus
-      - loki
-
-  sonarqube-db:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_USER: sonar
-      POSTGRES_PASSWORD: sonar
-      POSTGRES_DB: sonarqube
-    volumes:
-      - sonarqube-db-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sonar"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  sonarqube:
-    image: sonarqube:community
-    ports:
-      - "9000:9000"
-    environment:
-      SONAR_JDBC_URL: jdbc:postgresql://sonarqube-db:5432/sonarqube
-      SONAR_JDBC_USERNAME: sonar
-      SONAR_JDBC_PASSWORD: sonar
-    volumes:
-      - sonarqube-data:/opt/sonarqube/data
-      - sonarqube-extensions:/opt/sonarqube/extensions
-      - sonarqube-logs:/opt/sonarqube/logs
-    depends_on:
-      sonarqube-db:
-        condition: service_healthy
-    ulimits:
-      nofile:
-        soft: 65536
-        hard: 65536
-
 volumes:
   mongo-data:
-  prometheus-data:
-  grafana-data:
-  loki-data:
-  sonarqube-db-data:
-  sonarqube-data:
-  sonarqube-extensions:
-  sonarqube-logs:
