@@ -163,6 +163,10 @@ jobs:
             cd ~/lms-platform
             git pull origin main
             export JWT_SECRET="${{ secrets.JWT_SECRET }}"
+            export MONGODB_URI="${{ secrets.MONGODB_URI }}"
+            # MONGODB_URI should be the base URI without database name:
+            # mongodb+srv://<user>:<pass>@lms-cluster.oyibf3f.mongodb.net
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker image prune -f
             docker compose -f docker-compose.prod.yml ps
