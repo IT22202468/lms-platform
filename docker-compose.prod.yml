@@ -1,50 +1,45 @@
 services:
-  mongodb:
-    image: mongo:7
-    volumes:
-      - mongo-data:/data/db
-    healthcheck:
-      test: ["CMD-SHELL", "mongosh --eval 'db.adminCommand({ping:1})' --quiet || exit 1"]
-      interval: 15s
-      timeout: 15s
-      retries: 15
-      start_period: 60s
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-
   auth-service:
     image: ghcr.io/it22202468/auth-service:latest
     ports:
       - "8081:8081"
     environment:
-      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/authdb
+      SPRING_DATA_MONGODB_URI: ${MONGODB_URI}/authdb?retryWrites=true&w=majority&appName=LMS-Cluster
       JWT_SECRET: ${JWT_SECRET}
-      JDK_JAVA_OPTIONS: "-Xms64m -Xmx192m"
-    depends_on:
-      mongodb:
-        condition: service_healthy
+      JDK_JAVA_OPTIONS: >-
+        -XX:+UseSerialGC
+        -XX:MaxRAMPercentage=70.0
+        -XX:+TieredCompilation
+        -XX:TieredStopAtLevel=1
+        -Xms32m
+        -Xmx160m
     deploy:
       resources:
         limits:
-          memory: 128M
+          memory: 256M
+        reservations:
+          memory: 64M
 
   course-service:
     image: ghcr.io/it22202468/course-service:latest
     ports:
       - "8082:8082"
     environment:
-      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/coursedb
+      SPRING_DATA_MONGODB_URI: ${MONGODB_URI}/coursedb?retryWrites=true&w=majority&appName=LMS-Cluster
       JWT_SECRET: ${JWT_SECRET}
-      JDK_JAVA_OPTIONS: "-Xms64m -Xmx192m"
-    depends_on:
-      mongodb:
-        condition: service_healthy
+      JDK_JAVA_OPTIONS: >-
+        -XX:+UseSerialGC
+        -XX:MaxRAMPercentage=70.0
+        -XX:+TieredCompilation
+        -XX:TieredStopAtLevel=1
+        -Xms32m
+        -Xmx160m
     deploy:
       resources:
         limits:
-          memory: 128M
+          memory: 256M
+        reservations:
+          memory: 64M
 
   api-gateway:
     image: ghcr.io/it22202468/api-gateway:latest
@@ -54,14 +49,19 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       AUTH_SERVICE_URL: http://auth-service:8081
       COURSE_SERVICE_URL: http://course-service:8082
-      JDK_JAVA_OPTIONS: "-Xms64m -Xmx192m"
+      JDK_JAVA_OPTIONS: >-
+        -XX:+UseSerialGC
+        -XX:MaxRAMPercentage=70.0
+        -XX:+TieredCompilation
+        -XX:TieredStopAtLevel=1
+        -Xms32m
+        -Xmx128m
     depends_on:
       - auth-service
       - course-service
     deploy:
       resources:
         limits:
-          memory: 128M
-
-volumes:
-  mongo-data:
+          memory: 192M
+        reservations:
+          memory: 48M
