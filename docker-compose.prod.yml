@@ -12,7 +12,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 128M
 
   auth-service:
     image: ghcr.io/it22202468/auth-service:latest
@@ -28,7 +28,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 128M
 
   course-service:
     image: ghcr.io/it22202468/course-service:latest
@@ -44,7 +44,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 128M
 
   api-gateway:
     image: ghcr.io/it22202468/api-gateway:latest
@@ -61,7 +61,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 128M
 
 volumes:
   mongo-data:
