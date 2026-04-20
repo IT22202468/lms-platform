@@ -127,7 +127,7 @@ jobs:
   # ─────────────────────────────────────────────
   build-push:
     name: Build & Push · ${{ matrix.service }}
-    needs: [test]
+    needs: [sonar]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
