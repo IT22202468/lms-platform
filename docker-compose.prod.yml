@@ -4,7 +4,7 @@ services:
     ports:
       - "8081:8081"
     environment:
-      SPRING_DATA_MONGODB_URI: ${MONGODB_URI}/authdb?ssl=true&replicaSet=atlas-12y3b2-shard-0&authSource=admin&retryWrites=true&w=majority&appName=LMS-Cluster
+      SPRING_MONGODB_URI: ${MONGODB_URI}/authdb?ssl=true&replicaSet=atlas-12y3b2-shard-0&authSource=admin&retryWrites=true&w=majority&appName=LMS-Cluster
       JWT_SECRET: ${JWT_SECRET}
       JDK_JAVA_OPTIONS: >-
         -XX:+UseSerialGC
@@ -25,7 +25,7 @@ services:
     ports:
       - "8082:8082"
     environment:
-      SPRING_DATA_MONGODB_URI: ${MONGODB_URI}/coursedb?ssl=true&replicaSet=atlas-12y3b2-shard-0&authSource=admin&retryWrites=true&w=majority&appName=LMS-Cluster
+      SPRING_MONGODB_URI: ${MONGODB_URI}/coursedb?ssl=true&replicaSet=atlas-12y3b2-shard-0&authSource=admin&retryWrites=true&w=majority&appName=LMS-Cluster
       JWT_SECRET: ${JWT_SECRET}
       JDK_JAVA_OPTIONS: >-
         -XX:+UseSerialGC
