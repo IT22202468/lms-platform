@@ -98,11 +98,12 @@ jobs:
 
       - name: Build, test and analyze with SonarCloud
         working-directory: ${{ matrix.service }}
-        run: ./mvnw verify sonar:sonar -B
+        run: >
+          ./mvnw verify sonar:sonar -B
+          -Dsonar.host.url=https://sonarcloud.io
+          -Dsonar.token=${{ secrets.SONAR_TOKEN }}
         env:
           SPRING_MONGODB_URI: mongodb://localhost:27017/testdb
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://sonarcloud.io
 
   # ─────────────────────────────────────────────
   # Job 3 — Build & Push to ghcr.io (push only)
