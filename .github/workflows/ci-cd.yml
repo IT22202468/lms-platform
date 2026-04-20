@@ -64,9 +64,7 @@ jobs:
     name: Sonar · ${{ matrix.service }}
     needs: test
     if: github.event_name == 'push'
-    # if: github.event_name == 'push' && secrets.SONAR_HOST_URL != ''
     runs-on: ubuntu-latest
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -103,6 +101,7 @@ jobs:
           -Dsonar.host.url=https://sonarcloud.io
           -Dsonar.token=${{ secrets.SONAR_TOKEN }}
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SPRING_MONGODB_URI: mongodb://localhost:27017/testdb
 
   # ─────────────────────────────────────────────
