@@ -13,7 +13,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [auth-service, course-service, api-gateway]
+        include:
+          - service: auth-service
+            sonar_token_name: SONAR_TOKEN_AUTH
+          - service: course-service
+            sonar_token_name: SONAR_TOKEN_COURSE
+          - service: api-gateway
+            sonar_token_name: SONAR_TOKEN_GATEWAY
 
     services:
       mongodb:
@@ -54,7 +60,7 @@ jobs:
       - name: Build and analyze
         working-directory: ${{ matrix.service }}
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_TOKEN: ${{ secrets[matrix.sonar_token_name] }}
           SPRING_MONGODB_URI: mongodb://localhost:27017/testdb
         run: >
           ./mvnw -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
