@@ -157,7 +157,7 @@ jobs:
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VM_HOST }}
-          username: ubuntu
+          username: root
           key: ${{ secrets.VM_SSH_KEY }}
           script: |
             cd ~/lms-platform
