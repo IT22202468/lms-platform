@@ -53,6 +53,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       AUTH_SERVICE_URL: http://auth-service:8081
       COURSE_SERVICE_URL: http://course-service:8082
+      CORS_ALLOWED_ORIGINS: https://otterspacelearn.vercel.app
       JDK_JAVA_OPTIONS: >-
         -XX:+UseSerialGC
         -XX:MaxRAMPercentage=70.0

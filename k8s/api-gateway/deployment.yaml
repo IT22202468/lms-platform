@@ -25,6 +25,8 @@ spec:
                 secretKeyRef:
                   name: lms-secrets
                   key: JWT_SECRET
+            - name: CORS_ALLOWED_ORIGINS
+              value: "https://otterspacelearn.vercel.app"
             - name: AUTH_SERVICE_URL
               value: "http://auth-service:8081"
             - name: COURSE_SERVICE_URL
