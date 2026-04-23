@@ -231,4 +231,3 @@ jobs:
 
       - name: HPA status
         run: kubectl -n ${{ env.K8S_NAMESPACE }} get hpa
-
