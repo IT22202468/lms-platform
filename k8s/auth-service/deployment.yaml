@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: auth-service
-          image: ghcr.io/your-github-owner/auth-service:latest
+          image: ghcr.io/it22202468/auth-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8081
