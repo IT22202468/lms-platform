@@ -4,9 +4,10 @@ metadata:
   name: api-gateway
   namespace: lms
 spec:
-  type: LoadBalancer
+  type: NodePort
   selector:
     app: api-gateway
   ports:
     - port: 8085
       targetPort: 8085
+      nodePort: 30085
