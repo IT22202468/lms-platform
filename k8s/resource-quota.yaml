@@ -5,8 +5,8 @@ metadata:
   namespace: lms
 spec:
   hard:
-    requests.cpu: "500m"
-    limits.cpu: "1200m"
-    requests.memory: "420Mi"
-    limits.memory: "900Mi"
-    pods: "8"
+    requests.cpu: "200m"
+    limits.cpu: "800m"
+    requests.memory: "280Mi"
+    limits.memory: "520Mi"
+    pods: "5"
