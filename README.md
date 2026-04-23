@@ -1,6 +1,6 @@
 # OtterSpaceLearn — LMS Microservices Platform
 
-A Learning Management System built with Spring Boot microservices, deployed on an Oracle Cloud VM with Docker, Nginx reverse proxy, automated CI/CD, and SonarCloud code quality analysis.
+A Learning Management System built with Spring Boot microservices, deployed on an Oracle Cloud VM with Docker Compose, Nginx reverse proxy, automated CI/CD, and SonarCloud code quality analysis.
 
 **Live API:** `http://140.245.196.215`
 **Frontend:** [otterspacelearn.vercel.app](https://otterspacelearn.vercel.app)
@@ -18,9 +18,7 @@ A Learning Management System built with Spring Boot microservices, deployed on a
 - [Docker Compose](#docker-compose)
 - [Production Deployment](#production-deployment)
 - [CI/CD Pipeline](#cicd-pipeline)
-- [Nginx Reverse Proxy](#nginx-reverse-proxy)
 - [Observability](#observability)
-- [Kubernetes Production](#kubernetes-production)
 - [Project Structure](#project-structure)
 
 ---
@@ -264,27 +262,31 @@ MONGODB_URI="mongodb+srv://<user>:<pass>@<cluster>.mongodb.net"
 
 ## Production Deployment
 
-The backend runs on a **Kubernetes cluster** with GHCR images and GitHub Actions deployment automation.
+The backend runs on an **Oracle Cloud VM (1GB RAM)** using Docker Compose with pre-built GHCR images and MongoDB Atlas.
 
 ### Infrastructure overview
 
 | Component | Details |
 |---|---|
-| Runtime | Kubernetes namespace `lms` |
-| Workloads | Deployments + Services + HorizontalPodAutoscalers |
+| VM | Oracle Cloud (1GB RAM) |
+| Runtime | Docker Compose (`docker-compose.prod.yml`) |
+| Reverse Proxy | Nginx on the VM (port 80 → api-gateway 8085) |
 | Database | MongoDB Atlas (authdb + coursedb) |
-| Ingress / Entry | `api-gateway` Service (public entrypoint depends on your cluster ingress/LB) |
 | Frontend | Next.js on Vercel (otterspacelearn.vercel.app) |
 | Code Quality | SonarCloud (chosen over self-hosted SonarQube due to memory) |
-| CI/CD | GitHub Actions auto-deploys on push to main |
+| CI/CD | GitHub Actions builds and pushes images; deployment is manual pull on VM |
 
-### Cluster setup steps
+### Deploying to the VM
 
-1. Provision a Kubernetes cluster and install `kubectl`
-2. Install `metrics-server` (required for HPA CPU metrics)
-3. Add GitHub repository secrets for cluster access and runtime app secrets
-4. Push to `main` to trigger CI image build + Kubernetes deployment
-5. Verify rollout and autoscaling with `kubectl get deploy,hpa -n lms`
+1. SSH into the VM
+2. Ensure the `.env` file exists at `~/lms-platform/.env` (see [Docker Compose > Production](#production-on-vm))
+3. Pull the latest images and restart:
+
+```bash
+cd ~/lms-platform
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d --remove-orphans
+```
 
 ---
 
@@ -309,72 +311,27 @@ Push to main / dev
   build-push (matrix: 3 services)
   ├── Login to ghcr.io
   └── Push :sha-<commit> + :latest tags
-       │
-       ▼  (main branch only)
-  deploy
-  ├── Configure kubeconfig from secret
-  ├── Apply namespace + services + deployments + HPAs
-  ├── Set deployment images to :sha-<commit>
-  └── Validate rollout + HPA status
 ```
+
+Deployment to the VM is manual — pull the latest images and restart Docker Compose (see [Production Deployment](#production-deployment)).
 
 ### Trigger behaviour
 
-| Event | test | sonar | build-push | deploy |
-|---|---|---|---|---|
-| Push to `main` | yes | yes | yes | yes |
-| Push to `dev` | yes | yes | yes | no |
-| PR to `main` | yes | yes | no | no |
+| Event | test | sonar | build-push |
+|---|---|---|---|
+| Push to `main` | yes | yes | yes |
+| Push to `dev` | yes | yes | yes |
+| PR to `main` | yes | yes | no |
 
 ### Required GitHub Secrets
 
 | Secret | Purpose |
 |---|---|
-| `KUBECONFIG` | Cluster kubeconfig content used by deploy job |
-| `JWT_SECRET` | JWT signing key (shared across services) |
-| `AUTH_MONGODB_URI` | Full MongoDB Atlas URI for auth-service DB |
-| `COURSE_MONGODB_URI` | Full MongoDB Atlas URI for course-service DB |
 | `SONAR_TOKEN_AUTH` | SonarCloud token for auth-service |
 | `SONAR_TOKEN_COURSE` | SonarCloud token for course-service |
 | `SONAR_TOKEN_GATEWAY` | SonarCloud token for api-gateway |
 
 `GITHUB_TOKEN` is provided automatically.
-
----
-
-## Nginx Reverse Proxy
-
-Config files are in the `nginx/` directory.
-
-- `api-gateway.conf` — Nginx site config (port 80 → localhost:8085)
-- `setup.sh` — Installation script for the VM
-
-### What it does
-
-- Proxies all traffic from port 80 to the api-gateway on 8085
-- Forwards client headers (X-Real-IP, X-Forwarded-For, X-Forwarded-Proto)
-- Blocks public access to `/actuator` endpoints
-- Exposes `/health` endpoint for uptime monitoring
-- Supports WebSocket upgrade headers
-- Has a commented HTTPS block ready for Let's Encrypt SSL
-
-### Setup on VM
-
-```bash
-# Copy files to VM
-scp -i <key-file> -r nginx/ ubuntu@<vm-ip>:~/
-
-# On the VM
-cd ~/nginx
-sudo bash setup.sh
-```
-
-### SSL setup (after pointing a domain to the VM)
-
-```bash
-sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d api.yourdomain.com
-```
 
 ---
 
@@ -419,67 +376,6 @@ All services log in ECS JSON format. Promtail ships logs to Loki with labels ext
 
 ---
 
-## Kubernetes Production
-
-K8s manifests in the `k8s/` directory are used by production CI/CD.
-
-### Prerequisites
-
-- Cluster has `metrics-server` installed (`kubectl top nodes` works).
-- GHCR images are accessible by the cluster.
-- Namespace `lms` exists (CI applies `k8s/namespace.yaml`).
-- GitHub repository secrets are configured (`KUBECONFIG`, `JWT_SECRET`, `AUTH_MONGODB_URI`, `COURSE_MONGODB_URI`).
-- For 1GB VM nodes, keep the low-memory profile in these manifests (requests/limits + HPA range 1-2 + namespace quota).
-
-### Deploy manifests manually (optional)
-
-```bash
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/resource-quota.yaml
-kubectl apply -f k8s/auth-service/service.yaml
-kubectl apply -f k8s/course-service/service.yaml
-kubectl apply -f k8s/api-gateway/service.yaml
-kubectl apply -f k8s/auth-service/deployment.yaml
-kubectl apply -f k8s/course-service/deployment.yaml
-kubectl apply -f k8s/api-gateway/deployment.yaml
-kubectl apply -f k8s/auth-service/hpa.yaml
-kubectl apply -f k8s/course-service/hpa.yaml
-kubectl apply -f k8s/api-gateway/hpa.yaml
-```
-
-### Rollout verification
-
-```bash
-kubectl get deploy -n lms
-kubectl rollout status deployment/auth-service -n lms
-kubectl rollout status deployment/course-service -n lms
-kubectl rollout status deployment/api-gateway -n lms
-kubectl get hpa -n lms
-kubectl top pods -n lms
-```
-
-### Rollback
-
-```bash
-kubectl rollout undo deployment/auth-service -n lms
-kubectl rollout undo deployment/course-service -n lms
-kubectl rollout undo deployment/api-gateway -n lms
-```
-
-```
-k8s/
-├── namespace.yaml
-├── resource-quota.yaml       Namespace guardrail for 1GB VM capacity
-├── secret.yaml               Placeholder secret manifest (CI creates runtime secret)
-├── auth-service/             Deployment + ClusterIP + HPA
-├── course-service/           Deployment + ClusterIP + HPA
-├── api-gateway/              Deployment + Service + HPA
-├── mongodb/                  Optional in-cluster StatefulSet + PVC (not used with Atlas)
-└── monitoring/               Optional Prometheus, Grafana, Loki, Promtail
-```
-
----
-
 ## Project Structure
 
 ```
@@ -493,17 +389,13 @@ lms-platform/
 ├── course-service/               Course & enrollment management
 │   ├── src/
 │   └── Dockerfile
-├── nginx/
-│   ├── api-gateway.conf          Nginx reverse proxy config
-│   └── setup.sh                  VM setup script
 ├── monitoring/
 │   ├── prometheus.yml            Scrape config
 │   ├── loki-config.yml           Loki server config
 │   ├── promtail-config.yml       Log shipping config
 │   └── grafana/provisioning/     Auto-wired datasources
-├── k8s/                          Kubernetes manifests
 ├── .github/workflows/
 │   └── ci-cd.yml                 CI/CD pipeline
-├── docker-compose.yml            Local dev (all services + monitoring)
+├── docker-compose.yml            Local dev (all services + MongoDB)
 └── docker-compose.prod.yml       Production (GHCR images + Atlas)
 ```
