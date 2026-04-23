@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: course-service
-          image: ghcr.io/your-github-owner/course-service:latest
+          image: ghcr.io/it22202468/course-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8082
