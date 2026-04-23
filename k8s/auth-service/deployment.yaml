@@ -31,7 +31,7 @@ spec:
                   name: lms-secrets
                   key: JWT_SECRET
             - name: JAVA_TOOL_OPTIONS
-              value: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0 -Xss256k -XX:+UseSerialGC -XX:MaxMetaspaceSize=64m"
+              value: "-XX:MaxRAMPercentage=60.0"
           livenessProbe:
             httpGet:
               path: /actuator/health
@@ -48,8 +48,8 @@ spec:
             timeoutSeconds: 5
           resources:
             requests:
-              memory: "80Mi"
-              cpu: "50m"
+              memory: "128Mi"
+              cpu: "100m"
             limits:
-              memory: "160Mi"
-              cpu: "250m"
+              memory: "384Mi"
+              cpu: "500m"
