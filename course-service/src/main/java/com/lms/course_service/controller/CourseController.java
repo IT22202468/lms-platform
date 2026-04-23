@@ -3,6 +3,7 @@ package com.lms.course_service.controller;
 import com.lms.course_service.dto.CourseResponse;
 import com.lms.course_service.dto.CourseStudentResponse;
 import com.lms.course_service.dto.CreateCourseRequest;
+import com.lms.course_service.dto.LectureContentDto;
 import com.lms.course_service.dto.PageResponse;
 import com.lms.course_service.dto.UpdateCourseRequest;
 import com.lms.course_service.exception.UnauthorizedException;
@@ -172,6 +173,30 @@ public class CourseController {
     }
 
     private CourseResponse toResponse(Course c) {
-        return new CourseResponse(c.getId(), c.getTitle(), c.getDescription(), c.getInstructorId(), c.isPublished(), c.getCreatedAt());
+        List<LectureContentDto> lectureContents = c.getLectureContents() == null
+                ? List.of()
+                : c.getLectureContents().stream()
+                .map(item -> {
+                    LectureContentDto dto = new LectureContentDto();
+                    dto.setTitle(item.getTitle());
+                    dto.setContentType(item.getContentType());
+                    dto.setContentUrl(item.getContentUrl());
+                    dto.setDescription(item.getDescription());
+                    dto.setDurationSeconds(item.getDurationSeconds());
+                    return dto;
+                })
+                .toList();
+
+        return new CourseResponse(
+                c.getId(),
+                c.getTitle(),
+                c.getDescription(),
+                c.getInstructorId(),
+                c.getThumbnailImageUrl(),
+                lectureContents,
+                c.isPublished(),
+                c.getCreatedAt(),
+                c.getModifiedAt()
+        );
     }
 }

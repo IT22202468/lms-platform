@@ -4,6 +4,8 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Document("courses")
 public class Course {
@@ -14,9 +16,11 @@ public class Course {
     private String title;
     private String description;
     private String instructorId;
+    private String thumbnailImageUrl;
+    private List<LectureContent> lectureContents = new ArrayList<>();
     private boolean published = false;
     private Instant createdAt = Instant.now();
-    private Instant updatedAt = Instant.now();
+    private Instant modifiedAt = Instant.now();
 
     public Course() { }
 
@@ -25,7 +29,7 @@ public class Course {
         this.description = description;
         this.instructorId = instructorId;
         this.createdAt = Instant.now();
-        this.updatedAt = Instant.now();
+        this.modifiedAt = Instant.now();
     }
 
     public String getId() {
@@ -56,6 +60,22 @@ public class Course {
         this.instructorId = instructorId;
     }
 
+    public String getThumbnailImageUrl() {
+        return thumbnailImageUrl;
+    }
+
+    public void setThumbnailImageUrl(String thumbnailImageUrl) {
+        this.thumbnailImageUrl = thumbnailImageUrl;
+    }
+
+    public List<LectureContent> getLectureContents() {
+        return lectureContents;
+    }
+
+    public void setLectureContents(List<LectureContent> lectureContents) {
+        this.lectureContents = lectureContents == null ? new ArrayList<>() : lectureContents;
+    }
+
     public boolean isPublished() {
         return published;
     }
@@ -70,10 +90,19 @@ public class Course {
         this.createdAt = createdAt;
     }
 
-    public Instant getUpdatedAt() {
-        return updatedAt;
+    public Instant getModifiedAt() {
+        return modifiedAt;
     }
+
+    public void setModifiedAt(Instant modifiedAt) {
+        this.modifiedAt = modifiedAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return modifiedAt;
+    }
+
     public void setUpdatedAt(Instant updatedAt) {
-        this.updatedAt = updatedAt;
+        this.modifiedAt = updatedAt;
     }
 }
