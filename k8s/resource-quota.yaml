@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: lms-memory-guardrail
+  namespace: lms
+spec:
+  hard:
+    requests.cpu: "500m"
+    limits.cpu: "1200m"
+    requests.memory: "420Mi"
+    limits.memory: "900Mi"
+    pods: "8"

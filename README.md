@@ -20,7 +20,7 @@ A Learning Management System built with Spring Boot microservices, deployed on a
 - [CI/CD Pipeline](#cicd-pipeline)
 - [Nginx Reverse Proxy](#nginx-reverse-proxy)
 - [Observability](#observability)
-- [Kubernetes (Alternative)](#kubernetes-alternative)
+- [Kubernetes Production](#kubernetes-production)
 - [Project Structure](#project-structure)
 
 ---
@@ -264,28 +264,27 @@ MONGODB_URI="mongodb+srv://<user>:<pass>@<cluster>.mongodb.net"
 
 ## Production Deployment
 
-The backend runs on an **Oracle Cloud VM** (1GB RAM, Ubuntu).
+The backend runs on a **Kubernetes cluster** with GHCR images and GitHub Actions deployment automation.
 
 ### Infrastructure overview
 
 | Component | Details |
 |---|---|
-| VM | Oracle Cloud, 1GB RAM, public IP `140.245.196.215` |
-| Containers | Docker Compose with 3 services (GHCR images) |
+| Runtime | Kubernetes namespace `lms` |
+| Workloads | Deployments + Services + HorizontalPodAutoscalers |
 | Database | MongoDB Atlas (authdb + coursedb) |
-| Reverse Proxy | Nginx on port 80 → api-gateway:8085 |
+| Ingress / Entry | `api-gateway` Service (public entrypoint depends on your cluster ingress/LB) |
 | Frontend | Next.js on Vercel (otterspacelearn.vercel.app) |
 | Code Quality | SonarCloud (chosen over self-hosted SonarQube due to memory) |
 | CI/CD | GitHub Actions auto-deploys on push to main |
 
-### VM setup steps
+### Cluster setup steps
 
-1. Install Docker and Docker Compose on the VM
-2. Clone the repo and create `.env` with secrets
-3. Start containers: `docker compose -f docker-compose.prod.yml up -d`
-4. Install Nginx and configure reverse proxy (see [Nginx section](#nginx-reverse-proxy))
-5. Open port 80 in Oracle Cloud Security List + OS firewall
-6. Verify: `curl http://140.245.196.215/health`
+1. Provision a Kubernetes cluster and install `kubectl`
+2. Install `metrics-server` (required for HPA CPU metrics)
+3. Add GitHub repository secrets for cluster access and runtime app secrets
+4. Push to `main` to trigger CI image build + Kubernetes deployment
+5. Verify rollout and autoscaling with `kubectl get deploy,hpa -n lms`
 
 ---
 
@@ -313,9 +312,10 @@ Push to main / dev
        │
        ▼  (main branch only)
   deploy
-  ├── SSH into Oracle Cloud VM
-  ├── docker compose pull
-  └── docker compose up -d
+  ├── Configure kubeconfig from secret
+  ├── Apply namespace + services + deployments + HPAs
+  ├── Set deployment images to :sha-<commit>
+  └── Validate rollout + HPA status
 ```
 
 ### Trigger behaviour
@@ -330,10 +330,10 @@ Push to main / dev
 
 | Secret | Purpose |
 |---|---|
-| `VM_HOST` | VM public IP address |
-| `VM_SSH_KEY` | Private SSH key for VM access |
+| `KUBECONFIG` | Cluster kubeconfig content used by deploy job |
 | `JWT_SECRET` | JWT signing key (shared across services) |
-| `MONGODB_URI` | MongoDB Atlas base connection string |
+| `AUTH_MONGODB_URI` | Full MongoDB Atlas URI for auth-service DB |
+| `COURSE_MONGODB_URI` | Full MongoDB Atlas URI for course-service DB |
 | `SONAR_TOKEN_AUTH` | SonarCloud token for auth-service |
 | `SONAR_TOKEN_COURSE` | SonarCloud token for course-service |
 | `SONAR_TOKEN_GATEWAY` | SonarCloud token for api-gateway |
@@ -419,28 +419,63 @@ All services log in ECS JSON format. Promtail ships logs to Loki with labels ext
 
 ---
 
-## Kubernetes (Alternative)
+## Kubernetes Production
 
-K8s manifests are in the `k8s/` directory as an alternative deployment option. Currently not in use — production runs on Docker Compose.
+K8s manifests in the `k8s/` directory are used by production CI/CD.
+
+### Prerequisites
+
+- Cluster has `metrics-server` installed (`kubectl top nodes` works).
+- GHCR images are accessible by the cluster.
+- Namespace `lms` exists (CI applies `k8s/namespace.yaml`).
+- GitHub repository secrets are configured (`KUBECONFIG`, `JWT_SECRET`, `AUTH_MONGODB_URI`, `COURSE_MONGODB_URI`).
+- For 1GB VM nodes, keep the low-memory profile in these manifests (requests/limits + HPA range 1-2 + namespace quota).
+
+### Deploy manifests manually (optional)
 
 ```bash
 kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/mongodb/
-kubectl apply -f k8s/auth-service/
-kubectl apply -f k8s/course-service/
-kubectl apply -f k8s/api-gateway/
-kubectl apply -f k8s/monitoring/
+kubectl apply -f k8s/resource-quota.yaml
+kubectl apply -f k8s/auth-service/service.yaml
+kubectl apply -f k8s/course-service/service.yaml
+kubectl apply -f k8s/api-gateway/service.yaml
+kubectl apply -f k8s/auth-service/deployment.yaml
+kubectl apply -f k8s/course-service/deployment.yaml
+kubectl apply -f k8s/api-gateway/deployment.yaml
+kubectl apply -f k8s/auth-service/hpa.yaml
+kubectl apply -f k8s/course-service/hpa.yaml
+kubectl apply -f k8s/api-gateway/hpa.yaml
+```
+
+### Rollout verification
+
+```bash
+kubectl get deploy -n lms
+kubectl rollout status deployment/auth-service -n lms
+kubectl rollout status deployment/course-service -n lms
+kubectl rollout status deployment/api-gateway -n lms
+kubectl get hpa -n lms
+kubectl top pods -n lms
+```
+
+### Rollback
+
+```bash
+kubectl rollout undo deployment/auth-service -n lms
+kubectl rollout undo deployment/course-service -n lms
+kubectl rollout undo deployment/api-gateway -n lms
 ```
 
 ```
 k8s/
 ├── namespace.yaml
-├── secret.yaml
-├── mongodb/           StatefulSet + 1Gi PVC
-├── auth-service/      Deployment + ClusterIP
-├── course-service/    Deployment + ClusterIP
-├── api-gateway/       Deployment + LoadBalancer
-└── monitoring/        Prometheus, Grafana, Loki, Promtail
+├── resource-quota.yaml       Namespace guardrail for 1GB VM capacity
+├── secret.yaml               Placeholder secret manifest (CI creates runtime secret)
+├── auth-service/             Deployment + ClusterIP + HPA
+├── course-service/           Deployment + ClusterIP + HPA
+├── api-gateway/              Deployment + Service + HPA
+├── mongodb/                  Optional in-cluster StatefulSet + PVC (not used with Atlas)
+└── monitoring/               Optional Prometheus, Grafana, Loki, Promtail
 ```
 
 ---
