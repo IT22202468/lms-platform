@@ -1,12 +1,14 @@
 package com.lms.course_service.service;
 
 import com.lms.course_service.dto.CreateCourseRequest;
+import com.lms.course_service.dto.LectureContentDto;
 import com.lms.course_service.dto.UpdateCourseRequest;
 import com.lms.course_service.exception.CourseNotFoundException;
 import com.lms.course_service.exception.UnauthorizedException;
 import com.lms.course_service.exception.ValidationException;
 import com.lms.course_service.model.Course;
 import com.lms.course_service.model.Enrollment;
+import com.lms.course_service.model.LectureContent;
 import com.lms.course_service.repo.CourseRepository;
 import com.lms.course_service.repo.EnrollmentRepository;
 import org.slf4j.Logger;
@@ -16,6 +18,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.List;
 
 @Service
 public class CourseService {
@@ -32,6 +35,8 @@ public class CourseService {
 
     public Course createCourse(String instructorId, CreateCourseRequest req){
         Course course = new Course(req.getTitle(), req.getDescription(), instructorId);
+        course.setThumbnailImageUrl(req.getThumbnailImageUrl());
+        course.setLectureContents(mapLectureContents(req.getLectureContents()));
         Course saved = courseRepo.save(course);
         log.atInfo()
                 .addKeyValue("event.action", "course_created")
@@ -59,7 +64,7 @@ public class CourseService {
         }
 
         course.setPublished(true);
-        course.setUpdatedAt(Instant.now());
+        course.setModifiedAt(Instant.now());
         Course saved = courseRepo.save(course);
         log.atInfo()
                 .addKeyValue("event.action", "course_published")
@@ -91,8 +96,25 @@ public class CourseService {
 
         course.setTitle(req.getTitle());
         course.setDescription(req.getDescription());
-        course.setUpdatedAt(Instant.now());
+        course.setThumbnailImageUrl(req.getThumbnailImageUrl());
+        course.setLectureContents(mapLectureContents(req.getLectureContents()));
+        course.setModifiedAt(Instant.now());
         return courseRepo.save(course);
+    }
+
+    private List<LectureContent> mapLectureContents(List<LectureContentDto> lectureContents) {
+        if (lectureContents == null) {
+            return List.of();
+        }
+        return lectureContents.stream()
+                .map(item -> new LectureContent(
+                        item.getTitle(),
+                        item.getContentType(),
+                        item.getContentUrl(),
+                        item.getDescription(),
+                        item.getDurationSeconds()
+                ))
+                .toList();
     }
 
     public void deleteCourse(String instructorId, String courseId) {
