@@ -9,6 +9,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  K8S_NAMESPACE: lms
 
 jobs:
   # ─────────────────────────────────────────────
@@ -162,29 +163,71 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.service }}:latest
 
   # ─────────────────────────────────────────────
-  # Job 4 — Deploy to Oracle VM (main only)
+  # Job 4 — Deploy to Kubernetes (main only)
   # ─────────────────────────────────────────────
   deploy:
-    name: Deploy to VM
+    name: Deploy to Kubernetes
     needs: build-push
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     steps:
-      - name: SSH and deploy
-        uses: appleboy/ssh-action@v1
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
         with:
-          host: ${{ secrets.VM_HOST }}
-          username: ubuntu
-          key: ${{ secrets.VM_SSH_KEY }}
-          script: |
-            cd ~/lms-platform
-            git pull origin main
-            export JWT_SECRET="${{ secrets.JWT_SECRET }}"
-            export MONGODB_URI="${{ secrets.MONGODB_URI }}"
-            # MONGODB_URI should be the base URI without database name:
-            # mongodb+srv://<user>:<pass>@lms-cluster.oyibf3f.mongodb.net
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
-            docker image prune -f
-            docker compose -f docker-compose.prod.yml ps
+          version: latest
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "${{ secrets.KUBECONFIG }}" > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Lowercase owner
+        run: echo "OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Ensure namespace exists
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/resource-quota.yaml
+
+      - name: Apply runtime secrets
+        run: |
+          kubectl -n ${{ env.K8S_NAMESPACE }} create secret generic lms-secrets \
+            --from-literal=JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+            --from-literal=AUTH_MONGODB_URI="${{ secrets.AUTH_MONGODB_URI }}" \
+            --from-literal=COURSE_MONGODB_URI="${{ secrets.COURSE_MONGODB_URI }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Apply services and deployments
+        run: |
+          kubectl apply -f k8s/auth-service/service.yaml
+          kubectl apply -f k8s/course-service/service.yaml
+          kubectl apply -f k8s/api-gateway/service.yaml
+          kubectl apply -f k8s/auth-service/deployment.yaml
+          kubectl apply -f k8s/course-service/deployment.yaml
+          kubectl apply -f k8s/api-gateway/deployment.yaml
+
+      - name: Set deployment images to SHA tags
+        run: |
+          kubectl -n ${{ env.K8S_NAMESPACE }} set image deployment/auth-service auth-service=${{ env.REGISTRY }}/${{ env.OWNER }}/auth-service:sha-${{ github.sha }}
+          kubectl -n ${{ env.K8S_NAMESPACE }} set image deployment/course-service course-service=${{ env.REGISTRY }}/${{ env.OWNER }}/course-service:sha-${{ github.sha }}
+          kubectl -n ${{ env.K8S_NAMESPACE }} set image deployment/api-gateway api-gateway=${{ env.REGISTRY }}/${{ env.OWNER }}/api-gateway:sha-${{ github.sha }}
+
+      - name: Apply HPAs
+        run: |
+          kubectl apply -f k8s/auth-service/hpa.yaml
+          kubectl apply -f k8s/course-service/hpa.yaml
+          kubectl apply -f k8s/api-gateway/hpa.yaml
+
+      - name: Rollout checks
+        run: |
+          kubectl -n ${{ env.K8S_NAMESPACE }} rollout status deployment/auth-service --timeout=180s
+          kubectl -n ${{ env.K8S_NAMESPACE }} rollout status deployment/course-service --timeout=180s
+          kubectl -n ${{ env.K8S_NAMESPACE }} rollout status deployment/api-gateway --timeout=180s
+
+      - name: HPA status
+        run: kubectl -n ${{ env.K8S_NAMESPACE }} get hpa

@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
         - name: course-service
-          image: lms/course-service:latest
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/your-github-owner/course-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8082
           env:
@@ -30,6 +30,8 @@ spec:
                 secretKeyRef:
                   name: lms-secrets
                   key: JWT_SECRET
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=60.0 -XX:InitialRAMPercentage=25.0"
           livenessProbe:
             httpGet:
               path: /actuator/health
@@ -46,8 +48,8 @@ spec:
             timeoutSeconds: 5
           resources:
             requests:
-              memory: "256Mi"
-              cpu: "200m"
+              memory: "128Mi"
+              cpu: "100m"
             limits:
-              memory: "512Mi"
-              cpu: "500m"
+              memory: "256Mi"
+              cpu: "300m"

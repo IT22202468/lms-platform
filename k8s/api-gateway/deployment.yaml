@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
         - name: api-gateway
-          image: lms/api-gateway:latest
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/your-github-owner/api-gateway:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8085
           env:
@@ -25,6 +25,8 @@ spec:
                 secretKeyRef:
                   name: lms-secrets
                   key: JWT_SECRET
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=55.0 -XX:InitialRAMPercentage=20.0"
             - name: CORS_ALLOWED_ORIGINS
               value: "https://otterspacelearn.vercel.app"
             - name: AUTH_SERVICE_URL
@@ -47,8 +49,8 @@ spec:
             timeoutSeconds: 5
           resources:
             requests:
-              memory: "256Mi"
-              cpu: "200m"
+              memory: "96Mi"
+              cpu: "100m"
             limits:
-              memory: "512Mi"
-              cpu: "500m"
+              memory: "192Mi"
+              cpu: "250m"
