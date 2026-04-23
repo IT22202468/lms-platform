@@ -10,6 +10,7 @@ services:
       retries: 5
 
   auth-service:
+    build: ./auth-service
     image: ghcr.io/it22202468/auth-service:latest
     ports:
       - "8081:8081"
@@ -44,5 +45,29 @@ services:
       - auth-service
       - course-service
 
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - auth-service
+      - course-service
+      - api-gateway
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./monitoring/grafana/provisioning/:/etc/grafana/provisioning/:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
 volumes:
   mongo-data:
+  grafana-data:
