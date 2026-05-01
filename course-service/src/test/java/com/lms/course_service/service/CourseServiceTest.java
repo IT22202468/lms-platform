@@ -41,6 +41,9 @@ class CourseServiceTest {
     @Mock
     private EnrollmentRepository enrollmentRepo;
 
+    @Mock
+    private CourseFileStorageService fileStorage;
+
     @InjectMocks
     private CourseService courseService;
 
@@ -72,7 +75,7 @@ class CourseServiceTest {
             return c;
         });
 
-        Course result = courseService.createCourse("i99", req);
+        Course result = courseService.createCourse("i99", "instr@example.com", req);
 
         assertThat(result.getInstructorId()).isEqualTo("i99");
         assertThat(result.getTitle()).isEqualTo(req.getTitle());
@@ -174,7 +177,7 @@ class CourseServiceTest {
         req.setTitle("Updated title here");
         req.setDescription("Updated description text long enough");
 
-        assertThatThrownBy(() -> courseService.updateCourse("other", "c1", req))
+        assertThatThrownBy(() -> courseService.updateCourse("other", "x@example.com", "c1", req))
                 .isInstanceOf(UnauthorizedException.class);
     }
 
@@ -186,7 +189,7 @@ class CourseServiceTest {
         req.setTitle("New title goes here");
         req.setDescription("New description goes here ok");
 
-        Course result = courseService.updateCourse("inst-1", "c1", req);
+        Course result = courseService.updateCourse("inst-1", "inst@example.com", "c1", req);
 
         assertThat(result.getTitle()).isEqualTo(req.getTitle());
         assertThat(result.getDescription()).isEqualTo(req.getDescription());

@@ -10,6 +10,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 
 import java.util.List;
 import java.util.Map;
@@ -63,6 +65,21 @@ public class GlobalExceptionHandler {
 
         logClientError(ex, HttpStatus.FORBIDDEN, "security", "forbidden");
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("message", msg));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<?> handleMaxUpload(MaxUploadSizeExceededException ex) {
+        logClientError(ex, HttpStatus.PAYLOAD_TOO_LARGE, "payload_too_large", "failure");
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(Map.of("message", "Uploaded file exceeds the maximum allowed size"));
+    }
+
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<?> handleMultipart(MultipartException ex) {
+        logClientError(ex, HttpStatus.BAD_REQUEST, "multipart", "failure");
+        String msg = ex.getMessage() != null ? ex.getMessage() : "Invalid or incomplete multipart request";
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Map.of("message", msg));
     }
 

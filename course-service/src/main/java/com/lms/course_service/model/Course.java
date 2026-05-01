@@ -16,6 +16,8 @@ public class Course {
     private String title;
     private String description;
     private String instructorId;
+    /** Denormalized display (typically instructor email from gateway). */
+    private String instructorName;
     private String thumbnailImageUrl;
     private List<LectureContent> lectureContents = new ArrayList<>();
     private boolean published = false;
@@ -58,6 +60,14 @@ public class Course {
     }
     public void setInstructorId(String instructorId) {
         this.instructorId = instructorId;
+    }
+
+    public String getInstructorName() {
+        return instructorName;
+    }
+
+    public void setInstructorName(String instructorName) {
+        this.instructorName = instructorName;
     }
 
     public String getThumbnailImageUrl() {

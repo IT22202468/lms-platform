@@ -19,6 +19,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -60,12 +61,12 @@ class CourseControllerWebMvcTest {
 
     @Test
     void createCourse_instructor_returns201() throws Exception {
-        when(identityExtractor.extract(any())).thenReturn(new RequestIdentity("i1", "INSTRUCTOR"));
+        when(identityExtractor.extract(any())).thenReturn(new RequestIdentity("i1", "INSTRUCTOR", "instr@example.com"));
         Course saved = new Course("Valid title here", "Valid description here ok", "i1");
         saved.setId("new-c");
         saved.setPublished(false);
         saved.setCreatedAt(Instant.parse("2026-02-01T00:00:00Z"));
-        when(courseService.createCourse(eq("i1"), any())).thenReturn(saved);
+        when(courseService.createCourse(eq("i1"), anyString(), any())).thenReturn(saved);
 
         String body = """
                 {"title":"Valid title here","description":"Valid description here ok"}
@@ -79,7 +80,7 @@ class CourseControllerWebMvcTest {
 
     @Test
     void createCourse_student_returns403() throws Exception {
-        when(identityExtractor.extract(any())).thenReturn(new RequestIdentity("s1", "STUDENT"));
+        when(identityExtractor.extract(any())).thenReturn(new RequestIdentity("s1", "STUDENT", "stu@example.com"));
 
         String body = """
                 {"title":"Valid title here","description":"Valid description here ok"}
@@ -91,7 +92,7 @@ class CourseControllerWebMvcTest {
 
     @Test
     void createCourse_invalidBody_returns400() throws Exception {
-        when(identityExtractor.extract(any())).thenReturn(new RequestIdentity("i1", "INSTRUCTOR"));
+        when(identityExtractor.extract(any())).thenReturn(new RequestIdentity("i1", "INSTRUCTOR", "instr@example.com"));
 
         String body = """
                 {"title":"ab","description":"no"}
@@ -103,7 +104,7 @@ class CourseControllerWebMvcTest {
 
     @Test
     void getCourseById_returns200() throws Exception {
-        when(identityExtractor.extract(any())).thenReturn(new RequestIdentity("u1", "STUDENT"));
+        when(identityExtractor.extract(any())).thenReturn(new RequestIdentity("u1", "STUDENT", "stu@example.com"));
         Course course = new Course("T", "D", "inst");
         course.setId("c1");
         course.setPublished(true);
