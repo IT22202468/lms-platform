@@ -1,22 +1,26 @@
 package com.lms.course_service.model;
 
+import java.time.Instant;
+
 public class LectureContent {
 
+    private String materialId;
     private String title;
     private String contentType;
     private String contentUrl;
     private String description;
     private Long durationSeconds;
+    private Instant uploadedAt;
 
     public LectureContent() {
     }
 
-    public LectureContent(String title, String contentType, String contentUrl, String description, Long durationSeconds) {
-        this.title = title;
-        this.contentType = contentType;
-        this.contentUrl = contentUrl;
-        this.description = description;
-        this.durationSeconds = durationSeconds;
+    public String getMaterialId() {
+        return materialId;
+    }
+
+    public void setMaterialId(String materialId) {
+        this.materialId = materialId;
     }
 
     public String getTitle() {
@@ -57,5 +61,13 @@ public class LectureContent {
 
     public void setDurationSeconds(Long durationSeconds) {
         this.durationSeconds = durationSeconds;
+    }
+
+    public Instant getUploadedAt() {
+        return uploadedAt;
+    }
+
+    public void setUploadedAt(Instant uploadedAt) {
+        this.uploadedAt = uploadedAt;
     }
 }

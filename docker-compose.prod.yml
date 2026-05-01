@@ -29,6 +29,7 @@ services:
     environment:
       SPRING_MONGODB_URI: ${MONGODB_URI}/coursedb?ssl=true&replicaSet=atlas-12y3b2-shard-0&authSource=admin&retryWrites=true&w=majority&appName=LMS-Cluster
       JWT_SECRET: ${JWT_SECRET}
+      APP_UPLOAD_DIR: /data/uploads
       MANAGEMENT_HEALTH_MONGO_ENABLED: "false"
       MANAGEMENT_HEALTH_MONGODB_ENABLED: "false"
       JDK_JAVA_OPTIONS: >-
@@ -44,6 +45,8 @@ services:
           memory: 256M
         reservations:
           memory: 64M
+    volumes:
+      - course-uploads:/data/uploads
 
   api-gateway:
     image: ghcr.io/it22202468/api-gateway:latest
@@ -70,3 +73,6 @@ services:
           memory: 192M
         reservations:
           memory: 48M
+
+volumes:
+  course-uploads:

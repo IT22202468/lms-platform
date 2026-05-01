@@ -10,6 +10,7 @@ public class CourseResponse {
     private String title;
     private String description;
     private String instructorId;
+    private String instructorName;
     private String thumbnailImageUrl;
     private List<LectureContentDto> lectureContents = new ArrayList<>();
     private boolean published;
@@ -23,6 +24,7 @@ public class CourseResponse {
             String title,
             String description,
             String instructorId,
+            String instructorName,
             String thumbnailImageUrl,
             List<LectureContentDto> lectureContents,
             boolean published,
@@ -33,6 +35,7 @@ public class CourseResponse {
         this.title = title;
         this.description = description;
         this.instructorId = instructorId;
+        this.instructorName = instructorName;
         this.thumbnailImageUrl = thumbnailImageUrl;
         this.lectureContents = lectureContents;
         this.published = published;
@@ -52,6 +55,9 @@ public class CourseResponse {
 
     public String getInstructorId() { return instructorId; }
     public void setInstructorId(String instructorId) { this.instructorId = instructorId; }
+
+    public String getInstructorName() { return instructorName; }
+    public void setInstructorName(String instructorName) { this.instructorName = instructorName; }
 
     public String getThumbnailImageUrl() { return thumbnailImageUrl; }
     public void setThumbnailImageUrl(String thumbnailImageUrl) { this.thumbnailImageUrl = thumbnailImageUrl; }

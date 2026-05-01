@@ -4,25 +4,42 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
+import java.time.Instant;
+
 public class LectureContentDto {
+
+    @Size(max = 48)
+    private String materialId;
 
     @NotBlank
     @Size(min = 2, max = 200)
     private String title;
 
     @NotBlank
-    @Size(min = 2, max = 30)
+    @Size(min = 2, max = 120)
     private String contentType;
 
     @NotBlank
     @Size(min = 5, max = 2000)
     private String contentUrl;
 
-    @Size(max = 1000)
+    @NotBlank
+    @Size(min = 1, max = 1000)
     private String description;
 
     @PositiveOrZero
     private Long durationSeconds;
+
+    /** Set by server in responses; optional on input (ignored for merge). */
+    private Instant uploadedAt;
+
+    public String getMaterialId() {
+        return materialId;
+    }
+
+    public void setMaterialId(String materialId) {
+        this.materialId = materialId;
+    }
 
     public String getTitle() {
         return title;
@@ -62,5 +79,13 @@ public class LectureContentDto {
 
     public void setDurationSeconds(Long durationSeconds) {
         this.durationSeconds = durationSeconds;
+    }
+
+    public Instant getUploadedAt() {
+        return uploadedAt;
+    }
+
+    public void setUploadedAt(Instant uploadedAt) {
+        this.uploadedAt = uploadedAt;
     }
 }
