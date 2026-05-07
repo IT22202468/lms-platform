@@ -118,10 +118,26 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets[matrix.sonar_token_name] }}
           SPRING_MONGODB_URI: mongodb://localhost:27017/testdb
-        run: >
-          ./mvnw -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
-          -Dsonar.host.url=https://sonarcloud.io
-          -Dsonar.branch.name=${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          for attempt in 1 2 3; do
+            echo "Running SonarCloud analysis for ${{ matrix.service }} (attempt ${attempt}/3)"
+
+            if ./mvnw -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+              -Dsonar.host.url=https://sonarcloud.io \
+              -Dsonar.branch.name=${{ github.ref_name }}; then
+              exit 0
+            fi
+
+            if [[ ${attempt} -lt 3 ]]; then
+              sleep $((attempt * 10))
+              echo "SonarCloud analysis failed, retrying..."
+            fi
+          done
+
+          echo "SonarCloud analysis failed after 3 attempts"
+          exit 1
 
   # ─────────────────────────────────────────────
   # Job 3 — Build & Push to ghcr.io (push only)
