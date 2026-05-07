@@ -10,7 +10,7 @@ services:
       - "8081:8081"
     environment:
       SPRING_MONGODB_URI: ${MONGODB_URI}/auth-dev?ssl=true&replicaSet=atlas-12y3b2-shard-0&authSource=admin&retryWrites=true&w=majority&appName=LMS-Cluster
-      JWT_SECRET: ${JWT_SECRET:REMOVED_JWT_SECRET=}
+      JWT_SECRET: ${JWT_SECRET:-REMOVED_JWT_SECRET=}
       MANAGEMENT_HEALTH_MONGO_ENABLED: "false"
       MANAGEMENT_HEALTH_MONGODB_ENABLED: "false"
 
@@ -21,7 +21,7 @@ services:
       - "8082:8082"
     environment:
       SPRING_MONGODB_URI: ${MONGODB_URI}/course-dev?ssl=true&replicaSet=atlas-12y3b2-shard-0&authSource=admin&retryWrites=true&w=majority&appName=LMS-Cluster
-      JWT_SECRET: ${JWT_SECRET:REMOVED_JWT_SECRET=}
+      JWT_SECRET: ${JWT_SECRET:-REMOVED_JWT_SECRET=}
       APP_UPLOAD_DIR: /data/uploads
       MANAGEMENT_HEALTH_MONGO_ENABLED: "false"
       MANAGEMENT_HEALTH_MONGODB_ENABLED: "false"
