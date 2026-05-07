@@ -15,10 +15,11 @@ public class IdentityExtractor {
 
         String userId = request.getHeader("X-User-Id");
         String roles = request.getHeader("X-User-Roles");
+        String email = request.getHeader("X-User-Email");
 
         if(userId == null || userId.isBlank()){
             throw new SecurityException("Missing X-User-Id");
         }
-        return new RequestIdentity(userId, roles);
+        return new RequestIdentity(userId, roles, email);
     }
 }

@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xargs ls:*)"
+      "Bash(xargs ls:*)",
+      "WebSearch",
+      "Bash(gh api:*)",
+      "Bash(gh auth:*)"
     ]
   }
 }
