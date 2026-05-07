@@ -109,7 +109,7 @@ public class CourseFileStorageService {
         return new UrlResource(path.toUri());
     }
 
-    private static String safeSegment(String raw) {
+    static String safeSegment(String raw) {
         if (raw == null || raw.isBlank()) {
             throw new IllegalArgumentException("Invalid path segment");
         }
