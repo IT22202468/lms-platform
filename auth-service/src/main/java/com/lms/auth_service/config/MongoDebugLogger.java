@@ -11,17 +11,22 @@ public class MongoDebugLogger implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(MongoDebugLogger.class);
 
-    @Value("${spring.data.mongodb.uri:}")
+    @Value("${spring.mongodb.uri:}")
     private String mongoUri;
-
-    @Value("${spring.data.mongodb.database}")
-    private String databaseName;
 
     @Override
     public void run(String... args) {
         log.atDebug()
                 .addKeyValue("event.action", "mongo_connect")
-                .addKeyValue("db.name", databaseName)
+                .addKeyValue("db.name", extractDbName(mongoUri))
                 .log("MongoDB configuration loaded");
+    }
+
+    private String extractDbName(String uri) {
+        if (uri == null || uri.isBlank()) return "unknown";
+        int dbStart = uri.indexOf('/', uri.indexOf("//") + 2);
+        if (dbStart < 0) return "unknown";
+        int dbEnd = uri.indexOf('?', dbStart);
+        return (dbEnd > dbStart) ? uri.substring(dbStart + 1, dbEnd) : uri.substring(dbStart + 1);
     }
 }

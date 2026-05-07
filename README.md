@@ -1,6 +1,9 @@
-# LMS Microservices Platform
+# OtterSpaceLearn — LMS Microservices Platform
 
-A Learning Management System built as a production-grade Spring Boot microservices platform with JWT authentication, API Gateway routing, Docker, Kubernetes, CI/CD, and full observability (metrics + logs).
+A Learning Management System built with Spring Boot microservices, deployed on an Oracle Cloud VM with Docker Compose, Nginx reverse proxy, automated CI/CD, and SonarCloud code quality analysis.
+
+**Live API:** `http://140.245.196.215`
+**Frontend:** [otterspacelearn.vercel.app](https://otterspacelearn.vercel.app)
 
 ---
 
@@ -11,13 +14,11 @@ A Learning Management System built as a production-grade Spring Boot microservic
 - [Services](#services)
 - [API Reference](#api-reference)
 - [Error Handling](#error-handling)
-- [Running Locally (Maven)](#running-locally-maven)
+- [Running Locally](#running-locally)
 - [Docker Compose](#docker-compose)
-- [Kubernetes](#kubernetes)
+- [Production Deployment](#production-deployment)
 - [CI/CD Pipeline](#cicd-pipeline)
 - [Observability](#observability)
-  - [Metrics — Prometheus + Grafana](#metrics--prometheus--grafana)
-  - [Logs — Loki + Promtail](#logs--loki--promtail)
 - [Project Structure](#project-structure)
 
 ---
@@ -30,26 +31,36 @@ A Learning Management System built as a production-grade Spring Boot microservic
 | Framework | Spring Boot 4.0.3 |
 | Security | Spring Security + JJWT 0.12.5 |
 | Gateway | Spring Cloud Gateway Server MVC |
-| Database | MongoDB 7 |
+| Database | MongoDB 7 (Atlas in production) |
+| Frontend | Next.js (separate repo, Vercel-hosted) |
 | Build | Maven 3.9 (wrapper included) |
 | Containerisation | Docker + Docker Compose |
-| Orchestration | Kubernetes |
+| Reverse Proxy | Nginx |
 | CI/CD | GitHub Actions |
+| Code Quality | SonarCloud + JaCoCo (70% coverage gate) |
 | Metrics | Micrometer + Prometheus + Grafana |
 | Logging | ECS JSON (structured) + Loki + Promtail |
-| Test Coverage | JaCoCo (70% line minimum) |
+| VM | Oracle Cloud (1GB RAM) |
 
 ---
 
 ## Architecture
 
 ```
-                        Client
+                     Browser / Client
+                          │
+                          ▼
+                   ┌─────────────┐
+                   │   Nginx     │  :80 (public)
+                   │  reverse    │
+                   │   proxy     │
+                   └──────┬──────┘
                           │
                           ▼
                ┌─────────────────────┐
-               │     API Gateway      │  :8085
+               │     API Gateway      │  :8085 (internal)
                │  JWT validation      │
+               │  CORS handling       │
                │  Identity injection  │
                └──────────┬──────────┘
                     │              │
@@ -60,17 +71,11 @@ A Learning Management System built as a production-grade Spring Boot microservic
           └──────┬───────┘  └──────┬───────┘
                  │                  │
                  ▼                  ▼
-            MongoDB             MongoDB
-           (authdb)            (coursedb)
-
-
-   Observability (all environments)
-   ┌──────────────────────────────────────────┐
-   │  Prometheus :9090  ←  scrapes /actuator/ │
-   │  Loki :3100        ←  Promtail ships logs│
-   │  Grafana :3000     →  dashboards         │
-   └──────────────────────────────────────────┘
+           MongoDB Atlas       MongoDB Atlas
+            (authdb)            (coursedb)
 ```
+
+Local Docker Compose uses the same Atlas connection options as [`docker-compose.prod.yml`](docker-compose.prod.yml) but **different database names** (`auth-dev`, `course-dev`) so local data stays out of production collections.
 
 ### Identity Propagation Contract
 
@@ -92,7 +97,8 @@ The gateway validates the JWT on protected routes and injects these headers befo
 ### `auth-service` — port `8081`
 - User registration and login
 - Password hashing (BCrypt)
-- JWT generation and signing
+- JWT generation and signing (60-min expiry)
+- Roles: `STUDENT`, `INSTRUCTOR`, `ADMIN`
 
 ### `course-service` — port `8082`
 - Course lifecycle (create / update / publish / delete)
@@ -101,15 +107,16 @@ The gateway validates the JWT on protected routes and injects these headers befo
 - Pagination on all list endpoints
 
 ### `api-gateway` — port `8085`
-- Routes `/auth/**` → auth-service
-- Routes `/courses/**`, `/instructor/**`, `/student/**` → course-service
-- JWT validation and identity header injection for protected routes
+- Routes `/auth/**` → auth-service (no auth required)
+- Routes `/courses/**`, `/instructor/**`, `/student/**` → course-service (JWT required)
+- JWT validation and identity header injection
+- CORS configuration (allows Vercel frontend + localhost dev servers)
 
 ---
 
 ## API Reference
 
-All requests go through the gateway at `http://localhost:8085`.
+All requests go through the gateway. In production: `http://140.245.196.215`. Locally: `http://localhost:8085`.
 
 ### Auth
 
@@ -175,7 +182,6 @@ All services use a `GlobalExceptionHandler` that maps typed exceptions to consis
 | `MethodArgumentNotValidException` | `400 Bad Request` (with per-field errors) |
 | Unexpected | `500 Internal Server Error` |
 
-Error response shape:
 ```json
 { "message": "Course not found: abc123" }
 
@@ -185,28 +191,34 @@ Error response shape:
 
 ---
 
-## Running Locally (Maven)
+## Running Locally
 
-Prerequisites: Java 21, MongoDB running on `localhost:27017`.
+Prerequisites: Java 21, **MongoDB Atlas** (recommended so local matches hosted behavior).
+
+Export the same JVM property Spring Boot expects. Match [`docker-compose.prod.yml`](docker-compose.prod.yml) query parameters; use dev database names so you do not touch production data:
 
 ```bash
+# Same ssl/replicaSet/authSource/retryWrites as prod; replace USER/PASS/CLUSTER_HOST.
+Q="ssl=true&replicaSet=atlas-12y3b2-shard-0&authSource=admin&retryWrites=true&w=majority&appName=LMS-Cluster"
+export SPRING_MONGODB_URI_AUTH="mongodb+srv://USER:PASS@CLUSTER_HOST/auth-dev?${Q}"
+export SPRING_MONGODB_URI_COURSE="mongodb+srv://USER:PASS@CLUSTER_HOST/course-dev?${Q}"
+
 # Terminal 1
-cd auth-service && ./mvnw spring-boot:run
+cd auth-service && SPRING_MONGODB_URI="$SPRING_MONGODB_URI_AUTH" ./mvnw spring-boot:run
 
 # Terminal 2
-cd course-service && ./mvnw spring-boot:run
+cd course-service && SPRING_MONGODB_URI="$SPRING_MONGODB_URI_COURSE" ./mvnw spring-boot:run
 
 # Terminal 3
 cd api-gateway && ./mvnw spring-boot:run
 ```
 
+If you paste the full Atlas SRV string from Compass, put the dev database name **before** the query segment (e.g. `...mongodb.net/auth-dev?ssl=true&...`). Your cluster `replicaSet` name must match the value you use (see Atlas connection string or `docker-compose.prod.yml`).
+
 ### Run tests with coverage report
 
 ```bash
-# Run for a single service
 cd auth-service && ./mvnw verify
-
-# HTML coverage report
 open auth-service/target/site/jacoco/index.html
 ```
 
@@ -216,141 +228,83 @@ JaCoCo enforces **70% line coverage** — `mvn verify` fails if the threshold is
 
 ## Docker Compose
 
-### Start the full stack
+### Local development (full stack)
+
+Local `docker-compose.yml` uses **MongoDB Atlas only** (no local MongoDB container). You must create `lms-platform/.env`; Compose does not load credentials from `.env.example` alone.
 
 ```bash
-# First time or after code changes — rebuild images
-docker compose up --build
-
-# Subsequent starts (no code changes)
-docker compose up
+cd lms-platform
+cp .env.example .env
+# Edit .env: set MONGODB_URI (Atlas cluster base) and JWT_SECRET
 ```
 
-### Stop and clean up
+- `MONGODB_URI` must be the **cluster connection base** only: `mongodb+srv://USER:PASS@CLUSTER_HOST` with **no** trailing slash and **no** `/?...` Atlas query suffix. Compose builds full URIs to **`auth-dev`** and **`course-dev`** using the **same query parameters** as [`docker-compose.prod.yml`](docker-compose.prod.yml).
 
 ```bash
-# Stop containers (keep volumes)
+# Build and start all services + monitoring (Atlas from .env)
+docker compose up --build
+
+# Stop (keep uploads + Grafana volumes)
 docker compose down
 
-# Stop and delete all data volumes
+# Stop and remove anonymous volumes / named volumes declared in compose
 docker compose down -v
 ```
 
-### Override the JWT secret
+### Production (on VM)
 
 ```bash
-JWT_SECRET=my-secret docker compose up
+# Uses pre-built images from GHCR + MongoDB Atlas
+docker compose -f docker-compose.prod.yml up -d
+
+# View logs
+docker compose -f docker-compose.prod.yml logs -f
+
+# Restart after new images are pushed
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d --remove-orphans
 ```
 
-### Service URLs
+**Required `.env` file** locally (repository root `lms-platform/.env`) and on the VM (e.g. `~/lms-platform/.env` for production):
 
-| Service | URL |
-|---|---|
-| API Gateway | http://localhost:8085 |
-| auth-service | http://localhost:8081 |
-| course-service | http://localhost:8082 |
-| Prometheus | http://localhost:9090 |
-| Grafana | http://localhost:3000 |
-| Loki | http://localhost:3100 |
+See [`.env.example`](.env.example). Local `docker-compose.yml` builds URIs like production ([`docker-compose.prod.yml`](docker-compose.prod.yml): same `ssl`, `replicaSet`, `authSource`, `retryWrites`, `appName`) but uses **`auth-dev`** and **`course-dev`** instead of `authdb` and `coursedb`.
+
+### Container memory limits (production)
+
+| Service | Memory Limit | JVM Max Heap |
+|---|---|---|
+| auth-service | 256M | 160m |
+| course-service | 256M | 160m |
+| api-gateway | 192M | 128m |
 
 ---
 
-## Kubernetes
+## Production Deployment
 
-### Prerequisites
+The backend runs on an **Oracle Cloud VM (1GB RAM)** using Docker Compose with pre-built GHCR images and MongoDB Atlas.
 
-- `kubectl` configured against your cluster
-- Images pushed to a registry (or built locally for Docker Desktop)
+### Infrastructure overview
 
-### Build and tag images
+| Component | Details |
+|---|---|
+| VM | Oracle Cloud (1GB RAM) |
+| Runtime | Docker Compose (`docker-compose.prod.yml`) |
+| Reverse Proxy | Nginx on the VM (port 80 → api-gateway 8085) |
+| Database | MongoDB Atlas (authdb + coursedb) |
+| Frontend | Next.js on Vercel (otterspacelearn.vercel.app) |
+| Code Quality | SonarCloud (chosen over self-hosted SonarQube due to memory) |
+| CI/CD | GitHub Actions builds and pushes images; deployment is manual pull on VM |
 
-```bash
-docker compose build
-# Images are tagged as lms/auth-service:latest etc.
-# For a registry, retag and push:
-docker tag lms/auth-service:latest <registry>/auth-service:latest
-docker push <registry>/auth-service:latest
-```
+### Deploying to the VM
 
-### Deploy (first time)
-
-```bash
-# 1. Namespace
-kubectl apply -f k8s/namespace.yaml
-
-# 2. Secrets (edit k8s/secret.yaml with real values first, or use the command below)
-kubectl create secret generic lms-secrets \
-  --from-literal=JWT_SECRET="<your-secret>" \
-  --from-literal=AUTH_MONGODB_URI="mongodb://mongodb:27017/authdb" \
-  --from-literal=COURSE_MONGODB_URI="mongodb://mongodb:27017/coursedb" \
-  --namespace=lms --dry-run=client -o yaml | kubectl apply -f -
-
-# 3. MongoDB
-kubectl apply -f k8s/mongodb/
-
-# 4. Application services
-kubectl apply -f k8s/auth-service/
-kubectl apply -f k8s/course-service/
-kubectl apply -f k8s/api-gateway/
-
-# 5. Monitoring stack
-kubectl apply -f k8s/monitoring/
-```
-
-### Apply everything at once (re-deploy)
+1. SSH into the VM
+2. Ensure the `.env` file exists at `~/lms-platform/.env` (see [Docker Compose > Production](#production-on-vm))
+3. Pull the latest images and restart:
 
 ```bash
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/mongodb/
-kubectl apply -f k8s/auth-service/
-kubectl apply -f k8s/course-service/
-kubectl apply -f k8s/api-gateway/
-kubectl apply -f k8s/monitoring/
-```
-
-### Useful kubectl commands
-
-```bash
-# Watch pods come up
-kubectl get pods -n lms -w
-
-# Check logs for a service
-kubectl logs -n lms deployment/auth-service -f
-
-# Describe a pod (useful for debugging startup failures)
-kubectl describe pod -n lms -l app=auth-service
-
-# Check rollout status
-kubectl rollout status deployment/auth-service -n lms
-
-# Port-forward a service for local testing
-kubectl port-forward -n lms svc/api-gateway 8085:8085
-```
-
-### Kubernetes resource layout
-
-```
-k8s/
-├── namespace.yaml
-├── secret.yaml
-├── mongodb/
-│   ├── statefulset.yaml      # MongoDB with 1Gi PVC
-│   └── service.yaml
-├── auth-service/
-│   ├── deployment.yaml
-│   └── service.yaml
-├── course-service/
-│   ├── deployment.yaml
-│   └── service.yaml
-├── api-gateway/
-│   ├── deployment.yaml
-│   └── service.yaml          # type: LoadBalancer
-└── monitoring/
-    ├── prometheus-config.yaml
-    ├── prometheus-deployment.yaml
-    ├── grafana-deployment.yaml
-    ├── loki-deployment.yaml
-    └── promtail-daemonset.yaml
+cd ~/lms-platform
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d --remove-orphans
 ```
 
 ---
@@ -359,81 +313,62 @@ k8s/
 
 GitHub Actions workflow at `.github/workflows/ci-cd.yml`.
 
-### Pipeline stages
-
 ```
 Push to main / dev
        │
        ▼
   test (matrix: 3 services in parallel)
-  ├── Java 21 setup + Maven cache
   ├── MongoDB service container
-  ├── ./mvnw verify  (tests + JaCoCo 70% gate)
-  └── Upload JaCoCo HTML report as artifact
+  ├── ./mvnw verify (tests + JaCoCo 70% gate)
+  └── Upload JaCoCo report as artifact
        │
-       ▼  (push events only — not PRs)
-  build-push (matrix: 3 services in parallel)
-  ├── Login to ghcr.io (GITHUB_TOKEN)
-  ├── docker build
-  └── Push ghcr.io/<owner>/<service>:sha-<commit> + :latest
+       ▼
+  sonar (matrix: 3 services, each with own token)
+  └── SonarCloud analysis per service
        │
-       ▼  (main branch only)
-  deploy
-  ├── Decode KUBE_CONFIG secret → ~/.kube/config
-  ├── Sync K8s Secret from GitHub secrets
-  ├── kubectl apply (namespace, mongodb, services, deployments)
-  ├── kubectl set image (SHA-pinned tag per deployment)
-  └── kubectl rollout status (waits for healthy rollout)
+       ▼  (push events only)
+  build-push (matrix: 3 services)
+  ├── Login to ghcr.io
+  └── Push :sha-<commit> + :latest tags
 ```
 
-### Required GitHub Secrets
-
-Go to **Settings → Secrets and variables → Actions** and add:
-
-| Secret | How to get it |
-|---|---|
-| `KUBE_CONFIG` | `cat ~/.kube/config \| base64` |
-| `JWT_SECRET` | Your JWT signing key |
-
-`GITHUB_TOKEN` is provided automatically by GitHub — no action needed.
+Deployment to the VM is manual — pull the latest images and restart Docker Compose (see [Production Deployment](#production-deployment)).
 
 ### Trigger behaviour
 
-| Event | test | build-push | deploy |
+| Event | test | sonar | build-push |
 |---|---|---|---|
-| Push to `main` | ✅ | ✅ | ✅ |
-| Push to `dev` | ✅ | ✅ | ❌ |
-| PR to `main` | ✅ | ❌ | ❌ |
+| Push to `main` | yes | yes | yes |
+| Push to `dev` | yes | yes | yes |
+| PR to `main` | yes | yes | no |
+
+### Required GitHub Secrets
+
+| Secret | Purpose |
+|---|---|
+| `SONAR_TOKEN_AUTH` | SonarCloud token for auth-service |
+| `SONAR_TOKEN_COURSE` | SonarCloud token for course-service |
+| `SONAR_TOKEN_GATEWAY` | SonarCloud token for api-gateway |
+
+`GITHUB_TOKEN` is provided automatically.
 
 ---
 
 ## Observability
 
+Monitoring configs are in the `monitoring/` directory. These run in Docker Compose for local development. Not deployed on the production VM due to 1GB memory constraint.
+
 ### Metrics — Prometheus + Grafana
 
-All services expose metrics at `/actuator/prometheus`. Prometheus scrapes every 15 seconds.
-
-**Grafana** is pre-configured with Prometheus as a data source (via provisioning).
-
-#### Access
+All services expose `/actuator/prometheus`. Prometheus scrapes every 15s.
 
 - Prometheus: http://localhost:9090
 - Grafana: http://localhost:3000 (admin / admin)
 
-#### Recommended Grafana dashboards (import by ID)
-
-| ID | Dashboard |
-|---|---|
-| `4701` | JVM (Micrometer) — memory, CPU, GC, threads |
-| `11378` | Spring Boot Statistics — HTTP request rates per endpoint |
-| `6756` | MongoDB overview |
-
-To import: **Dashboards → Import → enter ID → select Prometheus datasource → Import**
-
-#### Example PromQL queries
+**Recommended Grafana dashboard IDs:** `4701` (JVM), `11378` (Spring Boot), `6756` (MongoDB)
 
 ```promql
-# HTTP request rate per service
+# HTTP request rate
 rate(http_server_requests_seconds_count{application="auth-service"}[1m])
 
 # 95th percentile response time
@@ -441,23 +376,11 @@ histogram_quantile(0.95, rate(http_server_requests_seconds_bucket[5m]))
 
 # JVM heap used
 jvm_memory_used_bytes{area="heap"}
-
-# Active MongoDB connections
-mongodb_driver_pool_size{application="course-service"}
 ```
-
----
 
 ### Logs — Loki + Promtail
 
-All services log in **ECS JSON format** to stdout. Promtail ships those logs to Loki with labels extracted from the structured JSON.
-
-#### Access
-
-- Loki API: http://localhost:3100
-- View logs in Grafana: **Explore → select Loki**
-
-#### LogQL query examples
+All services log in ECS JSON format. Promtail ships logs to Loki with labels extracted from structured JSON.
 
 ```logql
 # All logs from auth-service
@@ -466,25 +389,9 @@ All services log in **ECS JSON format** to stdout. Promtail ships those logs to 
 # ERROR logs across all services
 {log_level="ERROR"}
 
-# Errors from a specific service
-{service="course-service", log_level="ERROR"}
-
-# Full-text search within logs
+# Full-text search
 {service="auth-service"} |= "Invalid credentials"
-
-# Error rate over time (use in a Grafana panel)
-sum by (service) (rate({log_level="ERROR"}[1m]))
 ```
-
-#### How the labels are extracted
-
-Promtail parses the ECS JSON each service produces and automatically promotes these fields as Loki labels:
-
-| Loki label | Source in ECS JSON |
-|---|---|
-| `service` | `com.docker.compose.service` container label |
-| `log_level` | `log.level` JSON field |
-| `service_name` | `service.name` JSON field |
 
 ---
 
@@ -492,33 +399,22 @@ Promtail parses the ECS JSON each service produces and automatically promotes th
 
 ```
 lms-platform/
-├── api-gateway/                  Spring Cloud Gateway (JWT validation, routing)
+├── api-gateway/                  Spring Cloud Gateway (JWT, routing, CORS)
 │   ├── src/
 │   └── Dockerfile
-├── auth-service/                 Authentication service (register, login, JWT)
+├── auth-service/                 Authentication (register, login, JWT)
 │   ├── src/
 │   └── Dockerfile
 ├── course-service/               Course & enrollment management
 │   ├── src/
 │   └── Dockerfile
 ├── monitoring/
-│   ├── prometheus.yml            Prometheus scrape config (Docker Compose)
+│   ├── prometheus.yml            Scrape config
 │   ├── loki-config.yml           Loki server config
-│   ├── promtail-config.yml       Promtail Docker socket scrape config
-│   └── grafana/provisioning/
-│       └── datasources/
-│           ├── prometheus.yml    Auto-wires Prometheus into Grafana
-│           └── loki.yml          Auto-wires Loki into Grafana
-├── k8s/
-│   ├── namespace.yaml
-│   ├── secret.yaml
-│   ├── mongodb/
-│   ├── auth-service/
-│   ├── course-service/
-│   ├── api-gateway/
-│   └── monitoring/               Prometheus, Grafana, Loki, Promtail DaemonSet
-├── .github/
-│   └── workflows/
-│       └── ci-cd.yml             GitHub Actions CI/CD pipeline
-└── docker-compose.yml            Full local stack (all services + monitoring)
+│   ├── promtail-config.yml       Log shipping config
+│   └── grafana/provisioning/     Auto-wired datasources
+├── .github/workflows/
+│   └── ci-cd.yml                 CI/CD pipeline
+├── docker-compose.yml            Local dev (all services + MongoDB)
+└── docker-compose.prod.yml       Production (GHCR images + Atlas)
 ```

@@ -4,10 +4,12 @@ on:
   push:
     branches: [main, dev]
   pull_request:
+    types: [opened, synchronize, reopened]
     branches: [main]
 
 env:
   REGISTRY: ghcr.io
+  K8S_NAMESPACE: lms
 
 jobs:
   # ─────────────────────────────────────────────
@@ -47,7 +49,7 @@ jobs:
         working-directory: ${{ matrix.service }}
         run: ./mvnw verify -B
         env:
-          SPRING_DATA_MONGODB_URI: mongodb://localhost:27017/testdb
+          SPRING_MONGODB_URI: mongodb://localhost:27017/testdb
 
       - name: Upload JaCoCo report
         if: always()
@@ -58,19 +60,22 @@ jobs:
           retention-days: 7
 
   # ─────────────────────────────────────────────
-  # Job 2 — SonarQube Analysis (push only)
+  # Job 2 — SonarCloud Analysis (push & PR)
   # ─────────────────────────────────────────────
   sonar:
     name: Sonar · ${{ matrix.service }}
     needs: test
-    if: github.event_name == 'push'
-    # if: github.event_name == 'push' && secrets.SONAR_HOST_URL != ''
     runs-on: ubuntu-latest
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
-        service: [auth-service, course-service, api-gateway]
+        include:
+          - service: auth-service
+            sonar_token_name: SONAR_TOKEN_AUTH
+          - service: course-service
+            sonar_token_name: SONAR_TOKEN_COURSE
+          - service: api-gateway
+            sonar_token_name: SONAR_TOKEN_GATEWAY
 
     services:
       mongodb:
@@ -84,32 +89,46 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Java 21
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: 'maven'
+          java-version: 21
+          distribution: 'zulu'
 
-      - name: Build, test and analyze with SonarQube
+      - name: Cache SonarQube packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Build and analyze
         working-directory: ${{ matrix.service }}
-        run: ./mvnw verify sonar:sonar -B
         env:
-          SPRING_DATA_MONGODB_URI: mongodb://localhost:27017/testdb
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets[matrix.sonar_token_name] }}
+          SPRING_MONGODB_URI: mongodb://localhost:27017/testdb
+        run: >
+          ./mvnw -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+          -Dsonar.host.url=https://sonarcloud.io
+          -Dsonar.branch.name=${{ github.ref_name }}
 
   # ─────────────────────────────────────────────
   # Job 3 — Build & Push to ghcr.io (push only)
   # ─────────────────────────────────────────────
   build-push:
     name: Build & Push · ${{ matrix.service }}
-    needs: test
+    needs: [sonar]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
@@ -131,35 +150,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Lowercase owner
+        run: echo "OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: ./${{ matrix.service }}
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.service }}:sha-${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.service }}:latest
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.service }}:sha-${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.service }}:latest
 
-  # ─────────────────────────────────────────────
-  # Job 4 — Deploy to Oracle VM (main only)
-  # ─────────────────────────────────────────────
-  deploy:
-    name: Deploy to VM
-    needs: build-push
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: SSH and deploy
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VM_HOST }}
-          username: ubuntu
-          key: ${{ secrets.VM_SSH_KEY }}
-          script: |
-            cd ~/lms-platform
-            git pull origin main
-            export JWT_SECRET="${{ secrets.JWT_SECRET }}"
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
-            docker compose -f docker-compose.prod.yml ps
+        

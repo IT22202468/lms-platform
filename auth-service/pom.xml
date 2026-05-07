@@ -28,8 +28,9 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
-		<sonar.projectKey>lms-auth-service</sonar.projectKey>
+		<sonar.projectKey>IT22202468_lms-platform_auth-service</sonar.projectKey>
 		<sonar.projectName>LMS Auth Service</sonar.projectName>
+		<sonar.organization>it22202468</sonar.organization>
 		<sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
 		<sonar.exclusions>**/config/**,**/model/**,**/dto/**,**/exception/**,**/*Application.java</sonar.exclusions>
 	</properties>
