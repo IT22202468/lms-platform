@@ -98,7 +98,7 @@ public class GlobalExceptionHandler {
                 .addKeyValue("error.type", ex.getClass().getName())
                 .addKeyValue("error.category", "internal_error")
                 .addKeyValue("http.response.status_code", HttpStatus.INTERNAL_SERVER_ERROR.value())
-                .setCause(ex)
+                .addKeyValue("error.message", ex.getMessage() != null ? ex.getMessage() : "Unknown error")
                 .log("Unhandled exception");
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
