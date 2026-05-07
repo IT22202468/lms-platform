@@ -26,8 +26,19 @@ Sample response:
       "title": "Intro to Java",
       "description": "Core Java fundamentals",
       "instructorId": "instructor-123",
+      "thumbnailImageUrl": "https://cdn.example.com/thumbnails/intro-to-java.png",
+      "lectureContents": [
+        {
+          "title": "Lesson 1 - Java Basics",
+          "contentType": "VIDEO",
+          "contentUrl": "https://cdn.example.com/content/lesson-1.mp4",
+          "description": "Introduction to Java syntax",
+          "durationSeconds": 720
+        }
+      ],
       "published": true,
-      "createdAt": "2026-04-06T10:00:00Z"
+      "createdAt": "2026-04-06T10:00:00Z",
+      "modifiedAt": "2026-04-06T10:00:00Z"
     }
   ],
   "page": 0,

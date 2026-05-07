@@ -75,6 +75,8 @@ A Learning Management System built with Spring Boot microservices, deployed on a
             (authdb)            (coursedb)
 ```
 
+Local Docker Compose uses the same Atlas connection options as [`docker-compose.prod.yml`](docker-compose.prod.yml) but **different database names** (`auth-dev`, `course-dev`) so local data stays out of production collections.
+
 ### Identity Propagation Contract
 
 The gateway validates the JWT on protected routes and injects these headers before forwarding:
@@ -191,18 +193,27 @@ All services use a `GlobalExceptionHandler` that maps typed exceptions to consis
 
 ## Running Locally
 
-Prerequisites: Java 21, MongoDB running on `localhost:27017`.
+Prerequisites: Java 21, **MongoDB Atlas** (recommended so local matches hosted behavior).
+
+Export the same JVM property Spring Boot expects. Match [`docker-compose.prod.yml`](docker-compose.prod.yml) query parameters; use dev database names so you do not touch production data:
 
 ```bash
+# Same ssl/replicaSet/authSource/retryWrites as prod; replace USER/PASS/CLUSTER_HOST.
+Q="ssl=true&replicaSet=atlas-12y3b2-shard-0&authSource=admin&retryWrites=true&w=majority&appName=LMS-Cluster"
+export SPRING_MONGODB_URI_AUTH="mongodb+srv://USER:PASS@CLUSTER_HOST/auth-dev?${Q}"
+export SPRING_MONGODB_URI_COURSE="mongodb+srv://USER:PASS@CLUSTER_HOST/course-dev?${Q}"
+
 # Terminal 1
-cd auth-service && ./mvnw spring-boot:run
+cd auth-service && SPRING_MONGODB_URI="$SPRING_MONGODB_URI_AUTH" ./mvnw spring-boot:run
 
 # Terminal 2
-cd course-service && ./mvnw spring-boot:run
+cd course-service && SPRING_MONGODB_URI="$SPRING_MONGODB_URI_COURSE" ./mvnw spring-boot:run
 
 # Terminal 3
 cd api-gateway && ./mvnw spring-boot:run
 ```
+
+If you paste the full Atlas SRV string from Compass, put the dev database name **before** the query segment (e.g. `...mongodb.net/auth-dev?ssl=true&...`). Your cluster `replicaSet` name must match the value you use (see Atlas connection string or `docker-compose.prod.yml`).
 
 ### Run tests with coverage report
 
@@ -219,14 +230,24 @@ JaCoCo enforces **70% line coverage** — `mvn verify` fails if the threshold is
 
 ### Local development (full stack)
 
+Local `docker-compose.yml` uses **MongoDB Atlas only** (no local MongoDB container). You must create `lms-platform/.env`; Compose does not load credentials from `.env.example` alone.
+
 ```bash
-# Build and start all services + MongoDB + monitoring
+cd lms-platform
+cp .env.example .env
+# Edit .env: set MONGODB_URI (Atlas cluster base) and JWT_SECRET
+```
+
+- `MONGODB_URI` must be the **cluster connection base** only: `mongodb+srv://USER:PASS@CLUSTER_HOST` with **no** trailing slash and **no** `/?...` Atlas query suffix. Compose builds full URIs to **`auth-dev`** and **`course-dev`** using the **same query parameters** as [`docker-compose.prod.yml`](docker-compose.prod.yml).
+
+```bash
+# Build and start all services + monitoring (Atlas from .env)
 docker compose up --build
 
-# Stop (keep data)
+# Stop (keep uploads + Grafana volumes)
 docker compose down
 
-# Stop and delete all data
+# Stop and remove anonymous volumes / named volumes declared in compose
 docker compose down -v
 ```
 
@@ -244,11 +265,9 @@ docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d --remove-orphans
 ```
 
-**Required `.env` file** on the VM (at `~/lms-platform/.env`):
-```
-JWT_SECRET="<your-jwt-signing-key>"
-MONGODB_URI="mongodb+srv://<user>:<pass>@<cluster>.mongodb.net"
-```
+**Required `.env` file** locally (repository root `lms-platform/.env`) and on the VM (e.g. `~/lms-platform/.env` for production):
+
+See [`.env.example`](.env.example). Local `docker-compose.yml` builds URIs like production ([`docker-compose.prod.yml`](docker-compose.prod.yml): same `ssl`, `replicaSet`, `authSource`, `retryWrites`, `appName`) but uses **`auth-dev`** and **`course-dev`** instead of `authdb` and `coursedb`.
 
 ### Container memory limits (production)
 

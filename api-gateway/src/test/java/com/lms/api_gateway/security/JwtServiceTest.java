@@ -58,4 +58,29 @@ class JwtServiceTest {
         assertThatThrownBy(() -> jwtService.parseToken(token))
                 .isInstanceOf(Exception.class);
     }
+
+        @Test
+        void parseToken_expired_throws() {
+        SecretKey key = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
+        String token = Jwts.builder()
+            .subject("uid-1")
+            .claims(Map.of("email", "x@y.com", "roles", "STUDENT"))
+            .issuedAt(new Date(System.currentTimeMillis() - 120_000))
+            .expiration(new Date(System.currentTimeMillis() - 60_000))
+            .signWith(key)
+            .compact();
+
+        JwtService jwtService = new JwtService(SECRET);
+
+        assertThatThrownBy(() -> jwtService.parseToken(token))
+            .isInstanceOf(Exception.class);
+        }
+
+        @Test
+        void parseToken_emptyToken_throws() {
+        JwtService jwtService = new JwtService(SECRET);
+
+        assertThatThrownBy(() -> jwtService.parseToken(""))
+            .isInstanceOf(Exception.class);
+        }
 }

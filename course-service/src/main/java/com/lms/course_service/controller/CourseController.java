@@ -3,6 +3,7 @@ package com.lms.course_service.controller;
 import com.lms.course_service.dto.CourseResponse;
 import com.lms.course_service.dto.CourseStudentResponse;
 import com.lms.course_service.dto.CreateCourseRequest;
+import com.lms.course_service.dto.LectureContentDto;
 import com.lms.course_service.dto.PageResponse;
 import com.lms.course_service.dto.UpdateCourseRequest;
 import com.lms.course_service.exception.UnauthorizedException;
@@ -11,12 +12,27 @@ import com.lms.course_service.model.Enrollment;
 import com.lms.course_service.security.IdentityExtractor;
 import com.lms.course_service.security.RequestIdentity;
 import com.lms.course_service.service.CourseService;
+import com.lms.course_service.service.CourseService.ServedMaterial;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -28,6 +44,10 @@ public class CourseController {
     public CourseController(CourseService courseService, IdentityExtractor identityExtractor) {
         this.courseService = courseService;
         this.identityExtractor = identityExtractor;
+    }
+
+    private static String instructorLabel(RequestIdentity id) {
+        return id.getEmail() != null ? id.getEmail() : "";
     }
 
     @GetMapping("/courses")
@@ -59,7 +79,7 @@ public class CourseController {
         RequestIdentity id = identityExtractor.extract(request);
         requireRole(id, "INSTRUCTOR");
 
-        Course course = courseService.createCourse(id.getUserId(), req);
+        Course course = courseService.createCourse(id.getUserId(), instructorLabel(id), req);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(course));
     }
 
@@ -72,7 +92,58 @@ public class CourseController {
         RequestIdentity id = identityExtractor.extract(request);
         requireRole(id, "INSTRUCTOR");
 
-        return toResponse(courseService.updateCourse(id.getUserId(), courseId, req));
+        return toResponse(courseService.updateCourse(id.getUserId(), instructorLabel(id), courseId, req));
+    }
+
+    @PostMapping(path = "/courses/{courseId}/thumbnail", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public CourseResponse uploadThumbnail(
+            HttpServletRequest request,
+            @PathVariable String courseId,
+            @RequestPart("file") MultipartFile file
+    ) {
+        RequestIdentity id = identityExtractor.extract(request);
+        requireRole(id, "INSTRUCTOR");
+        Course course = courseService.uploadThumbnail(id.getUserId(), instructorLabel(id), courseId, file);
+        return toResponse(course);
+    }
+
+    @PostMapping(path = "/courses/{courseId}/materials", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public CourseResponse uploadMaterial(
+            HttpServletRequest request,
+            @PathVariable String courseId,
+            @RequestPart("file") MultipartFile file,
+            @RequestParam("title") String title,
+            @RequestParam("description") String description
+    ) {
+        RequestIdentity id = identityExtractor.extract(request);
+        requireRole(id, "INSTRUCTOR");
+        Course course = courseService.appendMaterialFromUpload(id.getUserId(), instructorLabel(id), courseId, title, description, file);
+        return toResponse(course);
+    }
+
+    @GetMapping("/courses/{courseId}/thumbnail")
+    public ResponseEntity<Resource> streamThumbnail(HttpServletRequest request, @PathVariable String courseId) throws IOException {
+        RequestIdentity id = identityExtractor.extract(request);
+        var served = courseService.loadThumbnailForUser(id.getUserId(), courseId);
+        return ResponseEntity.ok()
+                .contentType(served.mediaType())
+                .header(HttpHeaders.CACHE_CONTROL, "private, max-age=3600")
+                .body(served.resource());
+    }
+
+    @GetMapping("/courses/{courseId}/materials/{materialId}/download")
+    public ResponseEntity<Resource> downloadMaterial(
+            HttpServletRequest request,
+            @PathVariable String courseId,
+            @PathVariable String materialId
+    ) throws IOException {
+        RequestIdentity id = identityExtractor.extract(request);
+        ServedMaterial sm = courseService.loadMaterialForUser(id.getUserId(), courseId, materialId);
+        ContentDisposition disposition = ContentDisposition.attachment().filename(sm.filename()).build();
+        return ResponseEntity.ok()
+                .contentType(sm.mediaType())
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(sm.resource());
     }
 
     @DeleteMapping("/courses/{courseId}")
@@ -120,7 +191,7 @@ public class CourseController {
         requireRole(id, "STUDENT");
 
         courseService.enroll(id.getUserId(), courseId);
-        return ResponseEntity.status(HttpStatus.CREATED).body(java.util.Map.of("message", "Enrolled"));
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("message", "Enrolled"));
     }
 
     // Student: my enrollments
@@ -172,6 +243,33 @@ public class CourseController {
     }
 
     private CourseResponse toResponse(Course c) {
-        return new CourseResponse(c.getId(), c.getTitle(), c.getDescription(), c.getInstructorId(), c.isPublished(), c.getCreatedAt());
+        List<LectureContentDto> lectureContents = c.getLectureContents() == null
+                ? List.of()
+                : c.getLectureContents().stream()
+                .map(item -> {
+                    LectureContentDto dto = new LectureContentDto();
+                    dto.setMaterialId(item.getMaterialId());
+                    dto.setTitle(item.getTitle());
+                    dto.setContentType(item.getContentType());
+                    dto.setContentUrl(item.getContentUrl());
+                    dto.setDescription(item.getDescription());
+                    dto.setDurationSeconds(item.getDurationSeconds());
+                    dto.setUploadedAt(item.getUploadedAt());
+                    return dto;
+                })
+                .toList();
+
+        return new CourseResponse(
+                c.getId(),
+                c.getTitle(),
+                c.getDescription(),
+                c.getInstructorId(),
+                c.getInstructorName(),
+                c.getThumbnailImageUrl(),
+                lectureContents,
+                c.isPublished(),
+                c.getCreatedAt(),
+                c.getModifiedAt()
+        );
     }
 }
