@@ -60,6 +60,16 @@ class AuthControllerWebMvcTest {
     }
 
     @Test
+    void login_invalidBody_returns400() throws Exception {
+        String body = """
+                {"email":"bad","password":"short"}
+                """;
+
+        mockMvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void register_invalidBody_returns400() throws Exception {
         String body = """
                 {"email":"not-an-email","password":"short"}
