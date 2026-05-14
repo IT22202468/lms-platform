@@ -52,9 +52,11 @@ public class CourseController {
 
     @GetMapping("/courses")
     public PageResponse<CourseResponse> listCourses(
+            HttpServletRequest request,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "10") int size
     ) {
+        identityExtractor.extract(request);
         var result = courseService.listPublishedCourses(page, size).map(this::toResponse);
         return new PageResponse<>(
                 result.getContent(),

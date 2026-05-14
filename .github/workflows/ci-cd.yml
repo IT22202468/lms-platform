@@ -178,4 +178,24 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.service }}:sha-${{ github.sha }}
             ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.service }}:latest
 
+  # ─────────────────────────────────────────────
+  # Job 4 — Deploy to VM (main branch only)
+  # ─────────────────────────────────────────────
+  deploy:
+    name: Deploy to VM
+    needs: [build-push]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            cd ~/lms-platform
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml down
+            docker compose -f docker-compose.prod.yml up -d
         

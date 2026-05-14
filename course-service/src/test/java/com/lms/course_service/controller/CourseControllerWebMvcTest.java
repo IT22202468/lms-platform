@@ -54,8 +54,12 @@ class CourseControllerWebMvcTest {
     @MockitoBean
     private IdentityExtractor identityExtractor;
 
+    @MockitoBean
+    private com.lms.course_service.security.JwtService jwtService;
+
     @Test
     void listCourses_returnsPage() throws Exception {
+        when(identityExtractor.extract(any())).thenReturn(new RequestIdentity("u1", "STUDENT", "student@example.com"));
         Course course = new Course("Intro to Testing", "A course about tests", "inst-1");
         course.setId("c1");
         course.setPublished(true);

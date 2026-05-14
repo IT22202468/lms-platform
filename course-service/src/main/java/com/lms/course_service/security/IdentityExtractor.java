@@ -1,25 +1,36 @@
 package com.lms.course_service.security;
 
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 
 @Component
 public class IdentityExtractor {
 
-    public RequestIdentity extract(HttpServletRequest request){
+    private final JwtService jwtService;
 
-        String gatewayAuth = request.getHeader("X-Gateway-Auth");
-        if (!"true".equals(gatewayAuth)) {
-            throw new SecurityException("Request must come through gateway");
+    public IdentityExtractor(JwtService jwtService) {
+        this.jwtService = jwtService;
+    }
+
+    public RequestIdentity extract(HttpServletRequest request) {
+        String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new SecurityException("Missing or invalid Authorization header");
         }
 
-        String userId = request.getHeader("X-User-Id");
-        String roles = request.getHeader("X-User-Roles");
-        String email = request.getHeader("X-User-Email");
+        String token = authHeader.substring(7);
+        Claims claims = jwtService.parseToken(token);
 
-        if(userId == null || userId.isBlank()){
-            throw new SecurityException("Missing X-User-Id");
+        String userId = claims.getSubject();
+        if (userId == null || userId.isBlank()) {
+            throw new SecurityException("Missing user ID in token");
         }
+
+        String roles = claims.get("roles", String.class);
+        String email = claims.get("email", String.class);
+
         return new RequestIdentity(userId, roles, email);
     }
 }
