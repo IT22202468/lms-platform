@@ -1,0 +1,87 @@
+# =============================================================================
+# MONITORING — PROMETHEUS DEPLOYMENT + SERVICE
+# =============================================================================
+# Migrates your existing Prometheus container from Docker Compose to K8s.
+#
+# KEY CHANGE FROM DOCKER COMPOSE:
+#   The prometheus.yml config file is stored in a ConfigMap (below) instead
+#   of a bind mount. ConfigMaps store non-sensitive config data in the cluster.
+# =============================================================================
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: lms
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+    scrape_configs:
+      - job_name: 'auth-service'
+        static_configs:
+          - targets: ['auth-service:8081']    # K8s Service name resolves here
+        metrics_path: /actuator/prometheus
+      - job_name: 'course-service'
+        static_configs:
+          - targets: ['course-service:8082']
+        metrics_path: /actuator/prometheus
+      - job_name: 'api-gateway'
+        static_configs:
+          - targets: ['api-gateway:8085']
+        metrics_path: /actuator/prometheus
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: lms
+spec:
+  replicas: 1                     # Only 1 replica — Prometheus is stateful
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:latest
+          ports:
+            - containerPort: 9090
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/prometheus/prometheus.yml
+              subPath: prometheus.yml  # Mount only this key, not the whole directory
+      volumes:
+        - name: config-volume
+          configMap:
+            name: prometheus-config  # Reference to the ConfigMap above
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: lms
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090
+      nodePort: 30090             # Access locally at localhost:30090
+  type: NodePort

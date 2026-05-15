@@ -1,0 +1,106 @@
+# =============================================================================
+# COURSE SERVICE — DEPLOYMENT
+# =============================================================================
+# Same structure as auth-service deployment, but course-service also needs a
+# volume mount for file uploads (course materials stored at /data/uploads).
+#
+# DOCKER COMPOSE EQUIVALENT:
+#   course-service:
+#     image: ghcr.io/it22202468/course-service:latest
+#     volumes:
+#       - course-uploads:/data/uploads
+#     deploy:
+#       resources:
+#         limits:
+#           memory: 256M
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: course-service
+  namespace: lms
+  labels:
+    app: course-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: course-service
+  template:
+    metadata:
+      labels:
+        app: course-service
+    spec:
+      containers:
+        - name: course-service
+          image: ghcr.io/it22202468/course-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8082
+
+          env:
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: lms-secrets
+                  key: JWT_SECRET
+            - name: SPRING_MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: lms-secrets
+                  key: MONGODB_URI
+            - name: APP_UPLOAD_DIR
+              value: "/data/uploads"
+            - name: MANAGEMENT_HEALTH_MONGO_ENABLED
+              value: "false"
+            - name: MANAGEMENT_HEALTH_MONGODB_ENABLED
+              value: "false"
+            - name: JDK_JAVA_OPTIONS
+              value: >-
+                -XX:+UseSerialGC
+                -XX:MaxRAMPercentage=70.0
+                -XX:+TieredCompilation
+                -XX:TieredStopAtLevel=1
+                -Xms32m
+                -Xmx160m
+
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+
+          # -- Volume Mount --------------------------------------------------
+          # This mounts the PersistentVolume (defined in pvc.yaml) into the
+          # container at /data/uploads. Without this, uploaded files are lost
+          # when the pod restarts.
+          volumeMounts:
+            - name: uploads-storage
+              mountPath: /data/uploads
+
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8082
+            initialDelaySeconds: 45
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8082
+            initialDelaySeconds: 45
+            periodSeconds: 10
+
+      # -- Volume Definition -------------------------------------------------
+      # Links the volumeMount above to the actual PersistentVolumeClaim.
+      # The PVC is defined in course-service/pvc.yaml.
+      volumes:
+        - name: uploads-storage
+          persistentVolumeClaim:
+            claimName: course-uploads-pvc   # Must match metadata.name in pvc.yaml
+
+      imagePullSecrets:
+        - name: ghcr-secret

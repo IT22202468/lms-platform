@@ -1,0 +1,105 @@
+# =============================================================================
+# AUTH SERVICE — DEPLOYMENT
+# =============================================================================
+# A Deployment tells Kubernetes: "keep N copies (replicas) of this container
+# running at all times." If a pod crashes, K8s restarts it automatically.
+#
+# DOCKER COMPOSE EQUIVALENT:
+#   auth-service:
+#     image: ghcr.io/it22202468/auth-service:latest
+#     environment: ...
+#     deploy:
+#       resources:
+#         limits:
+#           memory: 256M
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: lms
+  labels:
+    app: auth-service
+spec:
+  replicas: 1                       # Start with 1; HPA will scale this up/down
+  selector:
+    matchLabels:
+      app: auth-service             # Must match template.metadata.labels below
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+        - name: auth-service
+          image: ghcr.io/it22202468/auth-service:latest
+          imagePullPolicy: Always   # Always pull latest image on pod start
+          ports:
+            - containerPort: 8081
+
+          # -- Environment Variables ------------------------------------------
+          # Instead of hardcoding values, we reference the Secret created in
+          # secrets.yaml. This keeps credentials out of this file.
+          env:
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: lms-secrets     # Name of the Secret object
+                  key: JWT_SECRET       # Key inside that Secret
+            - name: SPRING_MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: lms-secrets
+                  key: MONGODB_URI
+            - name: MANAGEMENT_HEALTH_MONGO_ENABLED
+              value: "false"
+            - name: MANAGEMENT_HEALTH_MONGODB_ENABLED
+              value: "false"
+            - name: JDK_JAVA_OPTIONS
+              value: >-
+                -XX:+UseSerialGC
+                -XX:MaxRAMPercentage=70.0
+                -XX:+TieredCompilation
+                -XX:TieredStopAtLevel=1
+                -Xms32m
+                -Xmx160m
+
+          # -- Resource Limits -----------------------------------------------
+          # requests: guaranteed resources reserved for this pod
+          # limits: hard cap — pod is killed/restarted if it exceeds this
+          # These mirror your docker-compose.prod.yml memory settings.
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"           # 100m = 0.1 CPU core
+            limits:
+              memory: "256Mi"
+              cpu: "500m"           # 500m = 0.5 CPU core
+
+          # -- Health Checks --------------------------------------------------
+          # livenessProbe:  if this fails, K8s restarts the pod
+          # readinessProbe: if this fails, K8s stops sending traffic to the pod
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8081
+            initialDelaySeconds: 45   # Spring Boot needs time to start
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8081
+            initialDelaySeconds: 45
+            periodSeconds: 10
+
+      # -- Image Pull Secret --------------------------------------------------
+      # Required because your image is on GHCR (private registry).
+      # Create it once with:
+      #   kubectl create secret docker-registry ghcr-secret \
+      #     --docker-server=ghcr.io \
+      #     --docker-username=<github-username> \
+      #     --docker-password=<github-pat> \
+      #     --namespace=lms
+      imagePullSecrets:
+        - name: ghcr-secret

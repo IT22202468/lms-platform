@@ -1,0 +1,44 @@
+# =============================================================================
+# API GATEWAY — INGRESS
+# =============================================================================
+# An Ingress is an L7 (HTTP) load balancer that sits in front of your Services.
+# It replaces Nginx as your reverse proxy when running on managed Kubernetes.
+#
+# NOTE FOR LOCAL (Docker Desktop):
+#   You don't need this for local testing — use NodePort (service.yaml) and
+#   hit localhost:30085 directly. Ingress makes more sense on cloud clusters.
+#
+# PREREQUISITE — INGRESS CONTROLLER:
+#   Ingress rules do nothing on their own. You need an Ingress Controller.
+#   Install NGINX Ingress Controller for Docker Desktop:
+#     kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
+#
+# DOCKER COMPOSE / CURRENT VM EQUIVALENT:
+#   Your Nginx on the VM currently proxies traffic like:
+#     location /api/ { proxy_pass http://localhost:8085; }
+#   Ingress does this at the cluster level.
+# =============================================================================
+
+# Uncomment below when deploying to a cloud cluster with an Ingress Controller
+
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: lms-ingress
+#   namespace: lms
+#   annotations:
+#     kubernetes.io/ingress.class: "nginx"
+#     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+#     nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+# spec:
+#   rules:
+#     - host: api.yourdomain.com
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: api-gateway
+#                 port:
+#                   number: 8085

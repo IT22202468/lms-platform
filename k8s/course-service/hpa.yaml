@@ -1,0 +1,33 @@
+# =============================================================================
+# COURSE SERVICE — HORIZONTAL POD AUTOSCALER
+# =============================================================================
+# Course service handles file uploads and reads, so it can get CPU-heavy.
+# We allow it to scale up to 5 replicas under load.
+#
+# NOTE ON SCALING WITH VOLUMES:
+#   If course-service scales to multiple replicas, all pods will share the
+#   same PVC (course-uploads-pvc). This requires the PVC access mode to be
+#   ReadWriteMany (RWX). Not all storage providers support RWX — check your
+#   cloud provider. Alternatively, use object storage (S3/GCS) for uploads
+#   instead of a local volume so any replica can access files.
+# =============================================================================
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: course-service-hpa
+  namespace: lms
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: course-service
+  minReplicas: 1
+  maxReplicas: 5                  # Allow more replicas since this handles uploads
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
