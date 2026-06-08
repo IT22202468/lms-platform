@@ -1,0 +1,43 @@
+# =============================================================================
+# COURSE SERVICE — PERSISTENT VOLUME CLAIM (PVC)
+# =============================================================================
+# A PVC requests persistent storage from the cluster. It replaces the named
+# Docker volume (course-uploads) in your docker-compose.prod.yml.
+#
+# DOCKER COMPOSE EQUIVALENT:
+#   volumes:
+#     course-uploads:
+#
+# HOW IT WORKS:
+#   1. You define a PVC (this file) — a request for storage
+#   2. Kubernetes finds a matching PersistentVolume (PV) in the cluster
+#      or provisions one automatically via a StorageClass
+#   3. The Deployment mounts this PVC into the container
+#
+# ON Docker Desktop K8s:
+#   Uses the built-in "hostpath" StorageClass — provisions storage on your Mac.
+#
+# ON k3s:
+#   Uses "local-path" StorageClass — provisions on the node's local disk.
+#
+# ON CLOUD (GKE/EKS/DigitalOcean):
+#   The cloud provider's StorageClass provisions a real persistent disk
+#   (e.g. AWS EBS, GCP Persistent Disk) automatically.
+# =============================================================================
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: course-uploads-pvc        # Referenced in deployment.yaml volumes section
+  namespace: lms
+spec:
+  accessModes:
+    - ReadWriteOnce               # RWO = only one pod can write at a time
+                                  # Use ReadWriteMany (RWX) if scaling to multiple replicas
+  resources:
+    requests:
+      storage: 5Gi                # Request 5GB of storage
+  # storageClassName is omitted — uses the cluster default
+  # Docker Desktop default: "hostpath"
+  # k3s default:            "local-path"
+  # GKE default:            "standard"

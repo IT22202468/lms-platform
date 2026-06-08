@@ -1,0 +1,88 @@
+# =============================================================================
+# MONITORING — GRAFANA DEPLOYMENT + SERVICE
+# =============================================================================
+# Migrates your Grafana container from Docker Compose to K8s.
+#
+# DOCKER COMPOSE EQUIVALENT:
+#   grafana:
+#     image: grafana/grafana:latest
+#     ports:
+#       - "3001:3000"
+#     volumes:
+#       - ./monitoring/grafana/provisioning/:/etc/grafana/provisioning/:ro
+#       - grafana-data:/var/lib/grafana
+# =============================================================================
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data-pvc
+  namespace: lms
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: lms
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lms-secrets
+                  key: GF_ADMIN_PASSWORD
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+          volumeMounts:
+            - name: grafana-storage
+              mountPath: /var/lib/grafana
+            # Mount your existing provisioning config (dashboards, datasources)
+            # You'd store these in a ConfigMap similar to prometheus.yml above
+            # - name: grafana-provisioning
+            #   mountPath: /etc/grafana/provisioning
+      volumes:
+        - name: grafana-storage
+          persistentVolumeClaim:
+            claimName: grafana-data-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: lms
+spec:
+  selector:
+    app: grafana
+  ports:
+    - port: 3000
+      targetPort: 3000
+      nodePort: 30301             # Access locally at localhost:30301
+  type: NodePort

@@ -1,8 +1,23 @@
+# =============================================================================
+# API GATEWAY — DEPLOYMENT
+# =============================================================================
+# The api-gateway is the single entry point for all external traffic.
+# It routes requests to auth-service and course-service internally.
+#
+# KEY DIFFERENCE FROM DOCKER COMPOSE:
+#   In docker-compose, services reference each other by container name:
+#     AUTH_SERVICE_URL: http://auth-service:8081
+#   In Kubernetes, this still works — the Service name acts as the DNS hostname
+#   within the same namespace. No URL changes needed.
+# =============================================================================
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: api-gateway
   namespace: lms
+  labels:
+    app: api-gateway
 spec:
   replicas: 1
   selector:
@@ -19,38 +34,51 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 8085
+
           env:
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: lms-secrets
                   key: JWT_SECRET
-            - name: JAVA_TOOL_OPTIONS
-              value: "-XX:MaxRAMPercentage=60.0"
-            - name: CORS_ALLOWED_ORIGINS
-              value: "https://otterspacelearn.vercel.app"
+            # These URLs use the Kubernetes Service names defined in each service.yaml
+            # They work because all services are in the same 'lms' namespace
             - name: AUTH_SERVICE_URL
               value: "http://auth-service:8081"
             - name: COURSE_SERVICE_URL
               value: "http://course-service:8082"
+            # localhost:5173 and localhost:3000 added for local development
+            - name: CORS_ALLOWED_ORIGINS
+              value: "https://otterspacelearn.vercel.app,http://localhost:5173,http://localhost:3000"
+            - name: JDK_JAVA_OPTIONS
+              value: >-
+                -XX:+UseSerialGC
+                -XX:MaxRAMPercentage=70.0
+                -XX:+TieredCompilation
+                -XX:TieredStopAtLevel=1
+                -Xms32m
+                -Xmx128m
+
+          resources:
+            requests:
+              memory: "48Mi"
+              cpu: "100m"
+            limits:
+              memory: "192Mi"
+              cpu: "400m"
+
           livenessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/liveness
               port: 8085
             initialDelaySeconds: 45
             periodSeconds: 10
-            timeoutSeconds: 5
           readinessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/readiness
               port: 8085
-            initialDelaySeconds: 30
+            initialDelaySeconds: 45
             periodSeconds: 10
-            timeoutSeconds: 5
-          resources:
-            requests:
-              memory: "128Mi"
-              cpu: "100m"
-            limits:
-              memory: "384Mi"
-              cpu: "500m"
+
+      imagePullSecrets:
+        - name: ghcr-secret

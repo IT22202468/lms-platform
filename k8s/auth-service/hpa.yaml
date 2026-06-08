@@ -1,19 +1,45 @@
+# =============================================================================
+# AUTH SERVICE — HORIZONTAL POD AUTOSCALER (HPA)
+# =============================================================================
+# HPA watches CPU/memory usage and automatically adjusts the number of replicas
+# in the Deployment. It reads metrics from the Metrics Server (must be installed).
+#
+# PREREQUISITE:
+#   Metrics Server must be running in the cluster:
+#   kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+#
+# HOW IT WORKS:
+#   Every 15 seconds, HPA checks average CPU across all auth-service pods.
+#   - If avg CPU > 70%  → scale UP   (add a replica, max 3)
+#   - If avg CPU < 70%  → scale DOWN (remove a replica, min 1)
+# =============================================================================
+
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: auth-service
+  name: auth-service-hpa
   namespace: lms
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: auth-service
-  minReplicas: 1
-  maxReplicas: 2
+    name: auth-service            # Must match the Deployment name
+  minReplicas: 1                  # Never scale below 1 pod
+  maxReplicas: 3                  # Never scale above 3 pods
   metrics:
+    # -- CPU based scaling ----------------------------------------------------
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 70
+          averageUtilization: 70  # Scale up when avg CPU across pods > 70%
+
+    # -- Memory based scaling (optional) --------------------------------------
+    # Uncomment to also scale on memory pressure
+    # - type: Resource
+    #   resource:
+    #     name: memory
+    #     target:
+    #       type: Utilization
+    #       averageUtilization: 80

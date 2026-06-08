@@ -1,13 +1,39 @@
+# =============================================================================
+# API GATEWAY — SERVICE
+# =============================================================================
+# Unlike auth-service and course-service which use ClusterIP (internal only),
+# api-gateway needs to be reachable from OUTSIDE the cluster.
+#
+# SERVICE TYPES:
+#   ClusterIP    — internal only (default). Used by auth/course service.
+#   NodePort     — exposes on a static port on every node (30000–32767).
+#                  Simple but not production-grade. Good for learning/k3s.
+#   LoadBalancer — provisions a cloud load balancer (AWS ELB, GCP LB, etc).
+#                  Best for production on managed K8s.
+#
+# For Docker Desktop (local):
+#   NodePort is accessible at localhost:30085
+#
+# For k3s on a VM:
+#   NodePort is accessible at <VM-IP>:30085
+#   Point your Nginx reverse proxy to this port instead of 8085.
+#
+# For managed K8s (GKE/EKS/DigitalOcean):
+#   Change type to LoadBalancer and remove the nodePort field.
+#   The cloud provider assigns a public IP automatically.
+# =============================================================================
+
 apiVersion: v1
 kind: Service
 metadata:
   name: api-gateway
   namespace: lms
 spec:
-  type: NodePort
   selector:
     app: api-gateway
   ports:
-    - port: 8085
+    - protocol: TCP
+      port: 8085
       targetPort: 8085
-      nodePort: 30085
+      nodePort: 30085             # Access locally at localhost:30085
+  type: NodePort

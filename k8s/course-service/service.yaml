@@ -1,3 +1,10 @@
+# =============================================================================
+# COURSE SERVICE — SERVICE
+# =============================================================================
+# Internal ClusterIP service so api-gateway can reach course-service at:
+#   http://course-service:8082  (within the lms namespace)
+# =============================================================================
+
 apiVersion: v1
 kind: Service
 metadata:
@@ -7,5 +14,7 @@ spec:
   selector:
     app: course-service
   ports:
-    - port: 8082
+    - protocol: TCP
+      port: 8082
       targetPort: 8082
+  type: ClusterIP
