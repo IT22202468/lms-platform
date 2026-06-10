@@ -15,6 +15,11 @@
 	<description>LMS Notification Service</description>
 	<properties>
 		<java.version>21</java.version>
+		<sonar.projectKey>IT22202468_lms-platform_notification-service</sonar.projectKey>
+		<sonar.projectName>LMS Notification Service</sonar.projectName>
+		<sonar.organization>it22202468</sonar.organization>
+		<sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+		<sonar.exclusions>**/config/**,**/model/**,**/dto/**,**/exception/**,**/*Application.java</sonar.exclusions>
 	</properties>
 	<dependencies>
 		<dependency>
