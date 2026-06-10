@@ -14,7 +14,6 @@ import org.springframework.web.servlet.function.ServerRequest;
 import org.springframework.web.servlet.function.ServerResponse;
 
 import static org.springframework.cloud.gateway.server.mvc.handler.HandlerFunctions.http;
-import static org.springframework.cloud.gateway.server.mvc.filter.BeforeFilterFunctions.uri;
 import static org.springframework.cloud.gateway.server.mvc.handler.GatewayRouterFunctions.route;
 
 @Configuration
@@ -36,59 +35,23 @@ public class GatewayRoutesConfig {
 
     @Bean
     public RouterFunction<ServerResponse> gatewayRoutes() {
-//        return route()
-//                .route(req -> req.path().startsWith("/auth/"), http())
-//                .before(uri("http://localhost:8081"))
-//
-//
-//                .route(req ->
-//                                req.path().startsWith("/courses/")
-//                                        || req.path().startsWith("/instructor/")
-//                                        || req.path().startsWith("/student/"),
-//                        http())
-//                .filter(jwtHeaderForwardingFilter())
-//                .before(uri("http://localhost:8082"))
-//                .build();
-//        RouterFunction<ServerResponse> authRoutes =
-//                route()
-//                        .route(req -> req.path().startsWith("/auth/"), http())
-//                        .before(uri("http://localhost:8081"))
-//                        .build();
-//
-//        RouterFunction<ServerResponse> protectedRoutes =
-//                route()
-//                        .route(req ->
-//                                        req.path().startsWith("/courses/")
-//                                                || req.path().startsWith("/instructor/")
-//                                                || req.path().startsWith("/student/"),
-//                                http())
-//                        .filter(jwtHeaderForwardingFilter())
-//                        .before(uri("http://localhost:8082"))
-//                        .build();
-//
-//        return authRoutes.andOther(protectedRoutes);
-        RouterFunction<ServerResponse> authRoutes =
-                (RouterFunction<ServerResponse>) route()
-                        .route(req -> req.path().startsWith("/auth/"), http())
-                        .before(uri(authServiceUrl))
-                        .build();
-
-        RouterFunction<ServerResponse> protectedRoutes =
-                (RouterFunction<ServerResponse>) route()
-                        .route(req ->
-                                        req.path().startsWith("/courses")
-                                                || req.path().startsWith("/instructor")
-                                                || req.path().startsWith("/student"),
-                                http())
-                        .filter(jwtHeaderForwardingFilter())
-                        .before(uri(courseServiceUrl))
-                        .build();
-
-        return (RouterFunction<ServerResponse>) authRoutes.andOther(protectedRoutes);
+        return route()
+                .route(req -> req.path().startsWith("/auth/"), http(authServiceUrl))
+                .route(req -> req.path().startsWith("/courses")
+                                || req.path().startsWith("/instructor")
+                                || req.path().startsWith("/student"),
+                        http(courseServiceUrl))
+                .filter(jwtHeaderForwardingFilter())
+                .build();
     }
 
     private HandlerFilterFunction<ServerResponse, ServerResponse> jwtHeaderForwardingFilter() {
         return (request, next) -> {
+            // Only apply filter to non-auth requests
+            if (request.path().startsWith("/auth/")) {
+                return next.handle(request);
+            }
+
             String authHeader = request.headers().firstHeader(HttpHeaders.AUTHORIZATION);
 
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -139,6 +102,4 @@ public class GatewayRoutesConfig {
             }
         };
     }
-
-
 }

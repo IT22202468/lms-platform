@@ -3,44 +3,101 @@
 # Compose reads variables from ./.env in this directory automatically.
 
 services:
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092'
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://:9092,CONTROLLER://:29093,PLAINTEXT_HOST://:29092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   auth-service:
     build: ./auth-service
     image: ghcr.io/it22202468/auth-service:latest
     ports:
       - "8081:8081"
+    env_file: .env
     environment:
-      SPRING_MONGODB_URI: ${MONGODB_URI}/auth-dev?ssl=true&replicaSet=atlas-12y3b2-shard-0&authSource=admin&retryWrites=true&w=majority&appName=LMS-Cluster
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      SPRING_DATA_MONGODB_URI: ${MONGODB_URI}/auth-dev?retryWrites=true&w=majority
+      SPRING_MONGODB_URI: ${MONGODB_URI}/auth-dev?retryWrites=true&w=majority
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       MANAGEMENT_HEALTH_MONGO_ENABLED: "false"
       MANAGEMENT_HEALTH_MONGODB_ENABLED: "false"
+    depends_on:
+      kafka:
+        condition: service_healthy
 
   course-service:
     build: ./course-service
     image: ghcr.io/it22202468/course-service:latest
     ports:
       - "8082:8082"
+    env_file: .env
     environment:
-      SPRING_MONGODB_URI: ${MONGODB_URI}/course-dev?ssl=true&replicaSet=atlas-12y3b2-shard-0&authSource=admin&retryWrites=true&w=majority&appName=LMS-Cluster
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      SPRING_DATA_MONGODB_URI: ${MONGODB_URI}/course-dev?retryWrites=true&w=majority
+      SPRING_MONGODB_URI: ${MONGODB_URI}/course-dev?retryWrites=true&w=majority
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       APP_UPLOAD_DIR: /data/uploads
       MANAGEMENT_HEALTH_MONGO_ENABLED: "false"
       MANAGEMENT_HEALTH_MONGODB_ENABLED: "false"
     volumes:
       - course-uploads:/data/uploads
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  notification-service:
+    build: ./notification-service
+    image: ghcr.io/it22202468/notification-service:latest
+    ports:
+      - "8090:8080"
+    env_file: .env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-codetester27@gmail.com}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-ubdvyyymbojmhnhd}
+    depends_on:
+      kafka:
+        condition: service_healthy
 
   api-gateway:
     build: ./api-gateway
     image: ghcr.io/it22202468/api-gateway:latest
     ports:
       - "8085:8085"
+    env_file: .env
     environment:
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
       AUTH_SERVICE_URL: http://auth-service:8081
       COURSE_SERVICE_URL: http://course-service:8082
       CORS_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173,https://otterspacelearn.vercel.app
     depends_on:
-      - auth-service
-      - course-service
+      auth-service:
+        condition: service_started
+      course-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
 
   prometheus:
     image: prom/prometheus:latest
@@ -51,14 +108,16 @@ services:
     depends_on:
       - auth-service
       - course-service
+      - notification-service
       - api-gateway
 
   grafana:
     image: grafana/grafana:latest
     ports:
       - "3001:3000"
+    env_file: .env
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:?GF_ADMIN_PASSWORD must be set in .env}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD}
     volumes:
       - ./monitoring/grafana/provisioning/:/etc/grafana/provisioning/:ro
       - grafana-data:/var/lib/grafana
