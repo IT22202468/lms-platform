@@ -42,7 +42,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.springframework.kafka.core.KafkaTemplate;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 @WebMvcTest(controllers = CourseController.class)
 @Import({GlobalExceptionHandler.class, SecurityConfig.class})
@@ -62,9 +61,6 @@ class CourseControllerWebMvcTest {
 
     @MockBean
     private KafkaTemplate<String, String> kafkaTemplate;
-
-    @MockBean
-    private ObjectMapper objectMapper;
 
     @Test
     void listCourses_returnsPage() throws Exception {
