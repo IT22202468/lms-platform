@@ -22,17 +22,6 @@ jobs:
       matrix:
         service: [auth-service, course-service, api-gateway, notification-service]
 
-    services:
-      mongodb:
-        image: mongo:7
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --eval \"db.adminCommand('ping')\""
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,7 +37,7 @@ jobs:
         working-directory: ${{ matrix.service }}
         run: ./mvnw verify -B
         env:
-          SPRING_MONGODB_URI: mongodb://localhost:27017/testdb
+          SPRING_MONGODB_URI: ${{ secrets.MONGODB_URI }}/testdb
 
       - name: Upload JaCoCo report
         if: always()
@@ -77,17 +66,6 @@ jobs:
             sonar_token_name: SONAR_TOKEN_GATEWAY
           - service: notification-service
             sonar_token_name: SONAR_TOKEN_NOTIFICATION
-
-    services:
-      mongodb:
-        image: mongo:7
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --eval \"db.adminCommand('ping')\""
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -118,7 +96,7 @@ jobs:
         working-directory: ${{ matrix.service }}
         env:
           SONAR_TOKEN: ${{ secrets[matrix.sonar_token_name] }}
-          SPRING_MONGODB_URI: mongodb://localhost:27017/testdb
+          SPRING_MONGODB_URI: ${{ secrets.MONGODB_URI }}/testdb
         run: |
           set -euo pipefail
 
