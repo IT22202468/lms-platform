@@ -3,6 +3,31 @@
 # Compose reads variables from ./.env in this directory automatically.
 
 services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+
   auth-service:
     build: ./auth-service
     image: ghcr.io/it22202468/auth-service:latest
@@ -10,9 +35,12 @@ services:
       - "8081:8081"
     environment:
       SPRING_MONGODB_URI: ${MONGODB_URI}/auth-dev?ssl=true&replicaSet=atlas-12y3b2-shard-0&authSource=admin&retryWrites=true&w=majority&appName=LMS-Cluster
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
       MANAGEMENT_HEALTH_MONGO_ENABLED: "false"
       MANAGEMENT_HEALTH_MONGODB_ENABLED: "false"
+    depends_on:
+      - kafka
 
   course-service:
     build: ./course-service
@@ -21,12 +49,29 @@ services:
       - "8082:8082"
     environment:
       SPRING_MONGODB_URI: ${MONGODB_URI}/course-dev?ssl=true&replicaSet=atlas-12y3b2-shard-0&authSource=admin&retryWrites=true&w=majority&appName=LMS-Cluster
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
       APP_UPLOAD_DIR: /data/uploads
       MANAGEMENT_HEALTH_MONGO_ENABLED: "false"
       MANAGEMENT_HEALTH_MONGODB_ENABLED: "false"
     volumes:
       - course-uploads:/data/uploads
+    depends_on:
+      - kafka
+
+  notification-service:
+    build: ./notification-service
+    image: ghcr.io/it22202468/notification-service:latest
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-codetester27@gmail.com}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-ubdvyyymbojmhnhd}
+    depends_on:
+      - kafka
 
   api-gateway:
     build: ./api-gateway
@@ -41,6 +86,7 @@ services:
     depends_on:
       - auth-service
       - course-service
+      - notification-service
 
   prometheus:
     image: prom/prometheus:latest
@@ -51,6 +97,7 @@ services:
     depends_on:
       - auth-service
       - course-service
+      - notification-service
       - api-gateway
 
   grafana:

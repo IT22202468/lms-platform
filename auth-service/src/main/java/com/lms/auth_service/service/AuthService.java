@@ -9,12 +9,18 @@ import com.lms.auth_service.exception.ValidationException;
 import com.lms.auth_service.model.User;
 import com.lms.auth_service.repo.UserRepository;
 import com.lms.auth_service.security.JwtService;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.Locale;
 import java.util.Set;
 
@@ -26,11 +32,21 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final KafkaTemplate<String, String> kafkaTemplate;
+    private final ObjectMapper objectMapper;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
+    public AuthService(
+        UserRepository userRepository, 
+        PasswordEncoder passwordEncoder, 
+        JwtService jwtService,
+        KafkaTemplate<String, String> kafkaTemplate,
+        ObjectMapper objectMapper
+    ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.kafkaTemplate = kafkaTemplate;
+        this.objectMapper = objectMapper;
     }
 
     public String register(RegisterRequest req){
@@ -86,9 +102,21 @@ public class AuthService {
                 .addKeyValue("user.role", role)
                 .log("User registered successfully");
 
+        publishUserRegisteredEvent(user);
+
         String rolesCsv = String.join(",", user.getRoles());
         return jwtService.generateAccessToken(user.getId(), user.getEmail(), rolesCsv);
 
+    }
+
+    private void publishUserRegisteredEvent(User user) {
+        UserRegisteredEvent event = new UserRegisteredEvent(user.getId(), user.getEmail(), Instant.now());
+
+        try {
+            kafkaTemplate.send("user.registered", objectMapper.writeValueAsString(event));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize user registered event", e);
+        }
     }
 
     public String login(LoginRequest req){
@@ -127,4 +155,6 @@ public class AuthService {
 
         return jwtService.generateAccessToken(user.getId(), user.getEmail(), rolesCsv);
     }
+
+    record UserRegisteredEvent(String userId, String email, Instant createdAt) {}
 }

@@ -33,17 +33,29 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
 
 @RestController
 public class CourseController {
     public final CourseService courseService;
     private final IdentityExtractor identityExtractor;
+    private final KafkaTemplate<String, String> kafkaTemplate;
+    private final ObjectMapper objectMapper;
+    private static final Logger log = LoggerFactory.getLogger(CourseController.class);
 
-    public CourseController(CourseService courseService, IdentityExtractor identityExtractor) {
+    public CourseController(CourseService courseService, IdentityExtractor identityExtractor,
+                            KafkaTemplate<String, String> kafkaTemplate, ObjectMapper objectMapper) {
         this.courseService = courseService;
         this.identityExtractor = identityExtractor;
+        this.kafkaTemplate = kafkaTemplate;
+        this.objectMapper = objectMapper;
     }
 
     private static String instructorLabel(RequestIdentity id) {
@@ -193,6 +205,20 @@ public class CourseController {
         requireRole(id, "STUDENT");
 
         courseService.enroll(id.getUserId(), courseId);
+
+        // publish enrollment event (best-effort)
+        try {
+            Map<String, Object> ev = Map.of(
+                    "courseId", courseId,
+                    "studentId", id.getUserId(),
+                    "studentEmail", id.getEmail(),
+                    "enrolledAt", Instant.now().toString()
+            );
+            kafkaTemplate.send("course.enrolled", objectMapper.writeValueAsString(ev));
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to publish course.enrolled event", e);
+        }
+
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("message", "Enrolled"));
     }
 
