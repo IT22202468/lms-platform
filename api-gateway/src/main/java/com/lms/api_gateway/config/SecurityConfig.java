@@ -15,7 +15,7 @@ import java.util.List;
 @Configuration
 public class SecurityConfig {
 
-    @Value("${cors.allowed-origins:http://localhost:3000,http://localhost:5173,https://otterspacelearn.vercel.app}")
+    @Value("${cors.allowed-origins}")
     private String[] allowedOrigins;
 
     @Bean
