@@ -64,17 +64,21 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<?> handleUnexpected(Exception ex) {
-        log.atError()
-                .addKeyValue("event.action", "http_error_response")
-                .addKeyValue("event.outcome", "server_error")
-                .addKeyValue("error.type", ex.getClass().getName())
-                .addKeyValue("error.category", "internal_error")
-                .addKeyValue("http.response.status_code", HttpStatus.INTERNAL_SERVER_ERROR.value())
-                .setCause(ex)
-                .log("Unhandled exception");
+        // log.atError()
+        //         .addKeyValue("event.action", "http_error_response")
+        //         .addKeyValue("event.outcome", "server_error")
+        //         .addKeyValue("error.type", ex.getClass().getName())
+        //         .addKeyValue("error.category", "internal_error")
+        //         .addKeyValue("http.response.status_code", HttpStatus.INTERNAL_SERVER_ERROR.value())
+        //         .setCause(ex)
+        //         .log("Unhandled exception");
+
+        // return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+        //         .body(Map.of("message", "Internal server error"));
+        log.error("Unhandled exception", ex);
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("message", "Internal server error"));
+            .body(Map.of("message", "Internal server error"));
     }
 
     private static void logClientError(Exception ex, HttpStatus status, String errorCategory, String outcome) {
