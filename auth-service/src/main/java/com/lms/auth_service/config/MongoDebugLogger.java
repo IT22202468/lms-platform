@@ -11,7 +11,7 @@ public class MongoDebugLogger implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(MongoDebugLogger.class);
 
-    @Value("${spring.mongodb.uri:}")
+    @Value("${spring.data.mongodb.uri:}")
     private String mongoUri;
 
     @Override
