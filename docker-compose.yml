@@ -73,10 +73,10 @@ services:
     env_file: .env
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
-      MAIL_PORT: ${MAIL_PORT:-587}
-      MAIL_USERNAME: ${MAIL_USERNAME:-codetester27@gmail.com}
-      MAIL_PASSWORD: ${MAIL_PASSWORD:-ubdvyyymbojmhnhd}
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
     depends_on:
       kafka:
         condition: service_healthy
@@ -90,7 +90,7 @@ services:
     environment:
       AUTH_SERVICE_URL: http://auth-service:8081
       COURSE_SERVICE_URL: http://course-service:8082
-      CORS_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173,https://otterspacelearn.vercel.app
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
     depends_on:
       auth-service:
         condition: service_started
