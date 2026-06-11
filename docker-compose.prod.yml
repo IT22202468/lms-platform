@@ -17,7 +17,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-      KAFKA_HEAP_OPTS: "-Xms160m -Xmx160m"
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx256m"
     ports:
       - "9092:9092"
     deploy:
@@ -27,10 +27,11 @@ services:
         reservations:
           memory: 160M
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/9092'"]
+      interval: 20s
+      timeout: 10s
+      retries: 15
+      start_period: 90s
 
   auth-service:
     image: ghcr.io/it22202468/auth-service:latest
@@ -51,7 +52,7 @@ services:
         -Xmx100m
     depends_on:
       kafka:
-        condition: service_healthy
+        condition: service_started
     deploy:
       resources:
         limits:
@@ -79,7 +80,7 @@ services:
         -Xmx100m
     depends_on:
       kafka:
-        condition: service_healthy
+        condition: service_started
     deploy:
       resources:
         limits:
@@ -108,7 +109,7 @@ services:
         -Xmx100m
     depends_on:
       kafka:
-        condition: service_healthy
+        condition: service_started
     deploy:
       resources:
         limits:
