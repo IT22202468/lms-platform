@@ -118,6 +118,7 @@ public class CourseController {
         RequestIdentity id = identityExtractor.extract(request);
         requireRole(id, "INSTRUCTOR");
         Course course = courseService.uploadThumbnail(id.getUserId(), instructorLabel(id), courseId, file);
+        log.info("Received file: {}", file.getOriginalFilename());
         return toResponse(course);
     }
 
@@ -132,6 +133,7 @@ public class CourseController {
         RequestIdentity id = identityExtractor.extract(request);
         requireRole(id, "INSTRUCTOR");
         Course course = courseService.appendMaterialFromUpload(id.getUserId(), instructorLabel(id), courseId, title, description, file);
+        log.info("Received file: {}", file.getOriginalFilename());
         return toResponse(course);
     }
 

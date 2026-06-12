@@ -41,7 +41,7 @@ public class GatewayRoutesConfig {
                                 || req.path().startsWith("/instructor")
                                 || req.path().startsWith("/student"),
                         http(courseServiceUrl))
-                .filter(jwtHeaderForwardingFilter())
+                // .filter(jwtHeaderForwardingFilter())
                 .build();
     }
 
